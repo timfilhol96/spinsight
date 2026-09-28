@@ -4,6 +4,8 @@ Stats on your Discogs record collection, plus help picking what to play next.
 Friends sign in with their own Discogs account. The app takes on the colour of
 the pressing you're looking at: a red translucent LP turns the whole page red.
 
+**Live:** <https://spinsight-app.vercel.app>
+
 **Stack:** TanStack Start (React 19, server functions) · Tailwind v4 · shadcn/ui ·
 TanStack Query · Supabase (Postgres) · Vercel.
 
@@ -59,3 +61,7 @@ RLS is enabled with no policies, so the public key can't read anything.
 Import the GitHub repo in Vercel and add the same environment variables. Then
 add `https://<your-app>.vercel.app/api/auth/discogs/callback` to the Discogs
 app's callback URL.
+
+## License
+
+[MIT](LICENSE)
