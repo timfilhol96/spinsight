@@ -36,6 +36,84 @@ function sector(from: number, to: number): string {
   return `M${C} ${C} L${p(from)} A${R} ${R} 0 ${large} 1 ${p(to)} Z`
 }
 
+/** Closed smooth path through `pts` (quadratic curves between midpoints). */
+function smoothPath(pts: Array<[number, number]>): string {
+  const mid = (a: [number, number], b: [number, number]) =>
+    `${((a[0] + b[0]) / 2).toFixed(2)} ${((a[1] + b[1]) / 2).toFixed(2)}`
+  const n = pts.length
+  let d = `M${mid(pts[n - 1], pts[0])}`
+  for (let i = 0; i < n; i++) {
+    const p = pts[i]
+    d += ` Q${p[0].toFixed(2)} ${p[1].toFixed(2)} ${mid(p, pts[(i + 1) % n])}`
+  }
+  return `${d}Z`
+}
+
+type Splat = { d: string; fill: string }
+
+/**
+ * Splatter as it looks when pressed: coloured pellets get squashed outward
+ * by the press, so each one is a streak along the radius that tapers to a
+ * point, often with a few droplets flung off its ends.
+ */
+function splatter(
+  r: () => number,
+  palette: string[],
+  density: 'fine' | 'normal' | 'heavy',
+): Splat[] {
+  const spec = {
+    fine: { n: 260, w: [0.4, 1.6], len: [1, 4], drops: 0.2 },
+    normal: { n: 190, w: [0.9, 5], len: [2.5, 9], drops: 0.8 },
+    heavy: { n: 280, w: [1.2, 6.5], len: [2.5, 10], drops: 1 },
+  }[density]
+  const lerp = ([a, b]: number[], t: number) => a + (b - a) * t
+  const out: Splat[] = []
+  for (let i = 0; i < spec.n; i++) {
+    const fill = palette[Math.floor(r() * palette.length)]
+    // Even over the playing area (sqrt), starting under the label edge.
+    const dist = 28 + Math.sqrt(r()) * 72
+    const theta = r() * Math.PI * 2
+    // Roughly radial, with a little wobble.
+    const dir = theta + (r() - 0.5) * 0.3
+    const ux = Math.cos(dir)
+    const uy = Math.sin(dir)
+    const at = (u: number, v: number): [number, number] => [
+      C + Math.cos(theta) * dist + u * ux - v * uy,
+      C + Math.sin(theta) * dist + u * uy + v * ux,
+    ]
+    const w = lerp(spec.w, r() ** 1.6)
+    // Specks stay stubby; bigger splats stretch into long streaks.
+    const len = w * lerp(spec.len, r())
+    // Fat head, tapering tail; the tail points either way along the radius.
+    const flip = r() < 0.65 ? 1 : -1
+    const steps = 7
+    const top: Array<[number, number]> = []
+    const bottom: Array<[number, number]> = []
+    for (let k = 0; k <= steps; k++) {
+      const t = k / steps
+      const half = (w / 2) * Math.sin(Math.PI * t ** 0.65) ** 0.8
+      const u = flip * (t - 0.35) * len
+      top.push(at(u, half * (0.75 + r() * 0.5)))
+      bottom.push(at(u, -half * (0.75 + r() * 0.5)))
+    }
+    out.push({ d: smoothPath([...top, ...bottom.reverse()]), fill })
+
+    // Droplets flung along the same line, shrinking as they go.
+    let u = flip * 0.65 * len
+    let size = w * 0.35
+    while (r() < spec.drops * 0.55 && size > 0.2) {
+      u += flip * (size * 2 + r() * w * 1.5)
+      const [x, y] = at(u, (r() - 0.5) * w * 0.8)
+      out.push({
+        d: `M${(x - size).toFixed(2)} ${y.toFixed(2)}a${size.toFixed(2)} ${size.toFixed(2)} 0 1 0 ${(size * 2).toFixed(2)} 0a${size.toFixed(2)} ${size.toFixed(2)} 0 1 0 ${(-size * 2).toFixed(2)} 0`,
+        fill,
+      })
+      size *= 0.55 + r() * 0.3
+    }
+  }
+  return out
+}
+
 type NoiseOpts = {
   type?: 'fractalNoise' | 'turbulence'
   freq: string
@@ -72,37 +150,29 @@ export function VinylDisc({
   const photo = look?.photo
   const s = seed % 997
 
-  const dots = useMemo(() => {
-    if (pattern !== 'splatter' && pattern !== 'galaxy') return []
+  // Galaxy stars: tiny round specks.
+  const stars = useMemo(() => {
+    if (pattern !== 'galaxy') return []
     const r = rng(seed)
-    const palette =
-      pattern === 'galaxy'
-        ? ['#ffffff', '#f3f0ea', ...colors.slice(2)]
-        : colors.slice(1).length
-          ? colors.slice(1)
-          : ['#f3f0ea']
-    const spec = {
-      galaxy: { n: 90, min: 0.3, max: 1.3 },
-      fine: { n: 160, min: 0.35, max: 1.4 },
-      normal: { n: 55, min: 0.8, max: 5 },
-      heavy: { n: 95, min: 1.2, max: 7.5 },
-    }[pattern === 'galaxy' ? 'galaxy' : (detail.density ?? 'normal')]
-    return Array.from({ length: spec.n }, () => {
+    const palette = ['#ffffff', '#f3f0ea', ...colors.slice(2)]
+    return Array.from({ length: 90 }, () => {
       const angle = r() * Math.PI * 2
-      // Keep splatter off the label, biased outward like real pressings.
       const dist = 36 + Math.sqrt(r()) * 60
-      const size = spec.min + r() * r() * (spec.max - spec.min)
+      const size = 0.3 + r() * r()
       return {
         cx: C + Math.cos(angle) * dist,
         cy: C + Math.sin(angle) * dist,
-        ry: size,
-        // Splats are squashed and irregular, not perfect circles.
-        rx: size * (0.8 + r() * 0.6),
-        rot: r() * 180,
+        r: size,
         fill: palette[Math.floor(r() * palette.length)],
-        o: pattern === 'galaxy' ? 0.5 + r() * 0.5 : 0.85 + r() * 0.15,
+        o: 0.5 + r() * 0.5,
       }
     })
+  }, [pattern, seed, colors])
+
+  const splats = useMemo(() => {
+    if (pattern !== 'splatter') return []
+    const palette = colors.slice(1).length ? colors.slice(1) : ['#f3f0ea']
+    return splatter(rng(seed), palette, detail.density ?? 'normal')
   }, [pattern, seed, colors, detail.density])
 
   const baseOpacity = translucent ? 0.72 : 1
@@ -410,6 +480,20 @@ export function VinylDisc({
               })}
             </>
           )}
+          {pattern === 'splatter' && !photo && (
+            // Ragged, slightly feathered splat edges instead of clean curves.
+            <filter id={id('ragged')} x="0" y="0" width="100%" height="100%">
+              <feTurbulence
+                type="fractalNoise"
+                baseFrequency="0.35"
+                numOctaves="2"
+                seed={s}
+                result="n"
+              />
+              <feDisplacementMap in="SourceGraphic" in2="n" scale="1.6" />
+              <feGaussianBlur stdDeviation="0.15" />
+            </filter>
+          )}
           {pattern === 'color-in-color' && !photo && (
             <filter
               id={id('edge')}
@@ -481,18 +565,23 @@ export function VinylDisc({
           {body()}
 
           {!photo &&
-            dots.map((d, i) => (
-              <ellipse
+            stars.map((d, i) => (
+              <circle
                 key={i}
                 cx={d.cx}
                 cy={d.cy}
-                rx={d.rx}
-                ry={d.ry}
-                transform={`rotate(${d.rot} ${d.cx} ${d.cy})`}
+                r={d.r}
                 fill={d.fill}
                 opacity={d.o}
               />
             ))}
+          {!photo && splats.length > 0 && (
+            <g filter={url('ragged')}>
+              {splats.map((d, i) => (
+                <path key={i} d={d.d} fill={d.fill} />
+              ))}
+            </g>
+          )}
 
           {translucent && !photo && (
             <circle cx={C} cy={C} r={R} fill={url('see-through')} />
