@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { ChevronDown, Square } from 'lucide-react'
 import { toast } from 'sonner'
@@ -47,10 +48,18 @@ export function NowPlayingDock() {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
   if (!mounted || !viewer || !playing) return null
-  return <Dock key={playing.playId} playing={playing} />
+  return (
+    <Dock key={playing.playId} playing={playing} username={viewer.username} />
+  )
 }
 
-function Dock({ playing }: { playing: NowPlaying }) {
+function Dock({
+  playing,
+  username,
+}: {
+  playing: NowPlaying
+  username: string
+}) {
   const qc = useQueryClient()
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const [stopping, setStopping] = useState(false)
@@ -124,50 +133,58 @@ function Dock({ playing }: { playing: NowPlaying }) {
         'rise-in',
       )}
     >
-      {/* Sleeve with the disc half out of it, spinning. */}
-      <div className="relative h-16 w-24 shrink-0">
-        <VinylDisc
-          look={playing.look}
-          labelImage={playing.thumb}
-          seed={playing.releaseId}
-          spinning
-          className="absolute top-0 left-7 size-16"
-        />
-        <div className="sleeve-shadow absolute top-0 left-0 size-16 overflow-hidden rounded-[2px] bg-muted">
-          {playing.coverImage && (
-            <img
-              src={playing.coverImage}
-              alt=""
-              className="size-full object-cover"
-            />
-          )}
-        </div>
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-1.5 text-[10px] font-medium tracking-[0.15em] text-record-1 uppercase">
-          <Equalizer /> Now spinning
-        </p>
-        <p className="truncate text-sm leading-tight font-semibold">
-          {playing.title}
-        </p>
-        <p className="truncate text-xs text-muted-foreground">
-          {playing.artist}
-        </p>
-        <div className="mt-1.5 flex items-center gap-2">
-          <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
-            {progress != null && (
-              <div
-                className="h-full rounded-full bg-record-1 transition-[width] duration-1000"
-                style={{ width: `${progress * 100}%` }}
+      <RecordLink
+        playing={playing}
+        username={username}
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-lg"
+      >
+        {/* Sleeve with the disc half out of it, spinning. */}
+        <div className="relative h-16 w-24 shrink-0">
+          <VinylDisc
+            look={playing.look}
+            labelImage={playing.thumb}
+            seed={playing.releaseId}
+            spinning
+            className="absolute top-0 left-7 size-16"
+          />
+          <div className="sleeve-shadow absolute top-0 left-0 size-16 overflow-hidden rounded-[2px] bg-muted">
+            {playing.coverImage && (
+              <img
+                src={playing.coverImage}
+                alt=""
+                className="size-full object-cover"
               />
             )}
           </div>
-          <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
-            {total ? `${Math.min(min, total)} / ${total} min` : `${min} min in`}
-          </span>
         </div>
-      </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1.5 text-[10px] font-medium tracking-[0.15em] text-record-1 uppercase">
+            <Equalizer /> Now spinning
+          </p>
+          <p className="truncate text-sm leading-tight font-semibold">
+            {playing.title}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">
+            {playing.artist}
+          </p>
+          <div className="mt-1.5 flex items-center gap-2">
+            <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
+              {progress != null && (
+                <div
+                  className="h-full rounded-full bg-record-1 transition-[width] duration-1000"
+                  style={{ width: `${progress * 100}%` }}
+                />
+              )}
+            </div>
+            <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
+              {total
+                ? `${Math.min(min, total)} / ${total} min`
+                : `${min} min in`}
+            </span>
+          </div>
+        </div>
+      </RecordLink>
 
       <div className="flex shrink-0 flex-col gap-1">
         <Button
@@ -190,6 +207,40 @@ function Dock({ playing }: { playing: NowPlaying }) {
         </Button>
       </div>
     </section>
+  )
+}
+
+/**
+ * Opens the record's card on the owner's collection page. Plain wrapper when
+ * the copy has left the collection, since there's no card to show.
+ */
+function RecordLink({
+  playing,
+  username,
+  className,
+  children,
+}: {
+  playing: NowPlaying
+  username: string
+  className?: string
+  children: React.ReactNode
+}) {
+  if (playing.instanceId == null) {
+    return <div className={className}>{children}</div>
+  }
+  return (
+    <Link
+      to="/u/$username"
+      params={{ username }}
+      search={{ open: playing.instanceId }}
+      className={cn(
+        className,
+        'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+      )}
+      aria-label={`${playing.title} by ${playing.artist}. Open record card.`}
+    >
+      {children}
+    </Link>
   )
 }
 

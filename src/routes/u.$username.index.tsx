@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Search, X } from 'lucide-react'
 import { RecordCard } from '#/components/record-card'
 import { RecordSheet } from '#/components/record-sheet'
@@ -24,6 +24,8 @@ export type CollectionSearch = {
   country?: string
   colored?: boolean
   sort?: 'added' | 'artist' | 'year'
+  /** Instance id of the open record card (the now-playing dock links here). */
+  open?: number
 }
 
 const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v : undefined)
@@ -44,6 +46,7 @@ export const Route = createFileRoute('/u/$username/')({
     country: str(s.country),
     colored: s.colored === true || s.colored === 'true' ? true : undefined,
     sort: s.sort === 'artist' || s.sort === 'year' ? s.sort : undefined,
+    open: int(s.open),
   }),
   head: ({ params }) => ({
     meta: [{ title: `${params.username}'s records · Spinsight` }],
@@ -75,7 +78,6 @@ function CollectionPage() {
   const profile = useProfile()
   const search = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
-  const [openId, setOpenId] = useState<number | null>(null)
 
   const setSearch = (patch: Partial<CollectionSearch>) =>
     navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true })
@@ -119,7 +121,7 @@ function CollectionPage() {
   ).filter(([, v]) => v !== undefined)
 
   const openRecord =
-    profile.records.find((r) => r.instanceId === openId) ?? null
+    profile.records.find((r) => r.instanceId === search.open) ?? null
 
   if (profile.records.length === 0) {
     return (
@@ -219,7 +221,7 @@ function CollectionPage() {
           <RecordCard
             key={r.instanceId}
             record={r}
-            onOpen={() => setOpenId(r.instanceId)}
+            onOpen={() => setSearch({ open: r.instanceId })}
           />
         ))}
       </section>
@@ -231,7 +233,7 @@ function CollectionPage() {
 
       <RecordSheet
         record={openRecord}
-        onOpenChange={(open) => !open && setOpenId(null)}
+        onOpenChange={(open) => !open && setSearch({ open: undefined })}
       />
     </>
   )
