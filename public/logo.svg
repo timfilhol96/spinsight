@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Spinsight: a record whose label is a little bar chart. -->
+  <circle cx="32" cy="32" r="30" fill="#1b120c"/>
+  <g fill="none" stroke="#fff" stroke-opacity=".09">
+    <circle cx="32" cy="32" r="26"/><circle cx="32" cy="32" r="22.5"/><circle cx="32" cy="32" r="19"/>
+  </g>
+  <path d="M32 5a27 27 0 0 1 23.4 13.5" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="32" cy="32" r="13" fill="#b5462a"/>
+  <g fill="#f3ebdd">
+    <rect x="25.5" y="32" width="3" height="6" rx="1"/>
+    <rect x="30.5" y="27" width="3" height="11" rx="1"/>
+    <rect x="35.5" y="29.5" width="3" height="8.5" rx="1"/>
+  </g>
+</svg>

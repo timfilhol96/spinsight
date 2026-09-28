@@ -1,0 +1,308 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,400..900,50..100&family=DM+Sans:opsz,wght@9..40,400..800&family=DM+Mono:wght@400;500&display=swap');
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Record-driven accent. Registered so theme changes between records animate
+ * instead of snapping. `useRecordTheme` writes these on <html>; when no record
+ * is selected they fall back to the shop's own accent.
+ */
+@property --record-1 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #b5462a;
+}
+@property --record-2 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #d9a441;
+}
+@property --record-ink {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #fff7ec;
+}
+
+/* Record shop by day: kraft paper, cream sleeves, burnt-orange signage. */
+:root {
+  --background: #f3ebdd;
+  --foreground: #2a1e16;
+  --card: #fbf6ec;
+  --card-foreground: #2a1e16;
+  --popover: #fbf6ec;
+  --popover-foreground: #2a1e16;
+  --primary: #b5462a;
+  --primary-foreground: #fff7ec;
+  --secondary: #e9dcc6;
+  --secondary-foreground: #3b2b1f;
+  --muted: #eadfcc;
+  --muted-foreground: #7a6654;
+  --accent: #e6d4b4;
+  --accent-foreground: #2a1e16;
+  --destructive: #a3261c;
+  --destructive-foreground: #fff7ec;
+  --border: #dccbb0;
+  --input: #dccbb0;
+  --ring: #c9804f;
+  --mustard: #d9a441;
+  --olive: #5f6b3a;
+  --oxblood: #7a2e2e;
+  --sticker: #f2c94c;
+  --sticker-ink: #3b2b1f;
+  --chart-1: #b5462a;
+  --chart-2: #d9a441;
+  --chart-3: #5f6b3a;
+  --chart-4: #2f6f73;
+  --chart-5: #7a2e2e;
+  --radius: 0.75rem;
+  --grain-opacity: 0.35;
+
+  --record-1: var(--primary);
+  --record-2: var(--mustard);
+  --record-ink: var(--primary-foreground);
+}
+
+/* Listening room at night: walnut, amber lamp light. */
+.dark {
+  --background: #17110d;
+  --foreground: #f1e6d4;
+  --card: #211913;
+  --card-foreground: #f1e6d4;
+  --popover: #241b15;
+  --popover-foreground: #f1e6d4;
+  --primary: #e0773f;
+  --primary-foreground: #1b120c;
+  --secondary: #2e231b;
+  --secondary-foreground: #f1e6d4;
+  --muted: #2a2019;
+  --muted-foreground: #a8927b;
+  --accent: #33271e;
+  --accent-foreground: #f1e6d4;
+  --destructive: #e05a4a;
+  --destructive-foreground: #1b120c;
+  --border: #3a2c21;
+  --input: #3a2c21;
+  --ring: #e0773f;
+  --mustard: #e3b35a;
+  --olive: #9aa66a;
+  --oxblood: #c0605a;
+  --sticker: #e3b35a;
+  --sticker-ink: #1b120c;
+  --chart-1: #e0773f;
+  --chart-2: #e3b35a;
+  --chart-3: #9aa66a;
+  --chart-4: #5fb0b4;
+  --chart-5: #c0605a;
+  --grain-opacity: 0.22;
+}
+
+@theme inline {
+  --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-mono: 'DM Mono', ui-monospace, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-mustard: var(--mustard);
+  --color-olive: var(--olive);
+  --color-oxblood: var(--oxblood);
+  --color-sticker: var(--sticker);
+  --color-sticker-ink: var(--sticker-ink);
+  --color-record-1: var(--record-1);
+  --color-record-2: var(--record-2);
+  --color-record-ink: var(--record-ink);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+html {
+  transition:
+    --record-1 700ms ease,
+    --record-2 700ms ease,
+    --record-ink 700ms ease;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: var(--background);
+  /* The selected record's colour bleeds into the room like light through a sleeve. */
+  background-image:
+    radial-gradient(
+      900px 520px at 85% -10%,
+      color-mix(in oklab, var(--record-1) 22%, transparent),
+      transparent 65%
+    ),
+    radial-gradient(
+      700px 480px at -10% 30%,
+      color-mix(in oklab, var(--record-2) 14%, transparent),
+      transparent 70%
+    );
+  background-attachment: fixed;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Paper grain. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  opacity: var(--grain-opacity);
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.25 0 0 0 0 0.15 0 0 0 0.25 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.dark body::before {
+  mix-blend-mode: screen;
+}
+
+.page-wrap {
+  width: min(1180px, calc(100% - 2rem));
+  margin-inline: auto;
+}
+
+/* Hand-applied price sticker, used for years, counts and catalogue numbers. */
+.sticker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  background: var(--sticker);
+  color: var(--sticker-ink);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 0.15rem 0.55rem;
+  transform: rotate(-3deg);
+  box-shadow: 0 1px 0 rgb(0 0 0 / 0.12);
+}
+
+/* Crate-divider style section label. */
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.sleeve-shadow {
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.4) inset,
+    0 10px 24px -12px rgb(42 30 22 / 0.45),
+    0 2px 6px -2px rgb(42 30 22 / 0.25);
+}
+
+.dark .sleeve-shadow {
+  box-shadow:
+    0 12px 28px -12px rgb(0 0 0 / 0.8),
+    0 2px 6px -2px rgb(0 0 0 / 0.5);
+}
+
+@keyframes spin-record {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-record {
+  animation: spin-record 1.8s linear infinite;
+}
+
+.animate-spin-slow {
+  animation: spin-record 12s linear infinite;
+}
+
+/* The picked record sliding out of its sleeve. */
+@keyframes slide-out {
+  from {
+    transform: translateX(-45%) rotate(-90deg);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateX(0) rotate(0);
+    opacity: 1;
+  }
+}
+
+.slide-out {
+  animation: slide-out 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise-in {
+  animation: rise-in 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin-record,
+  .animate-spin-slow,
+  .slide-out,
+  .rise-in {
+    animation: none;
+  }
+  html {
+    transition: none;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    color: var(--foreground);
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-variation-settings: 'SOFT' 100;
+  }
+}
