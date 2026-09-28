@@ -34,6 +34,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "recharts": "^3.10.1",
+    "sharp": "^0.35.5",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.0.2",
     "tailwindcss": "^4.1.18",
@@ -51,7 +52,6 @@
     "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^9.20.0",
     "prettier": "^3.8.1",
-    "sharp": "^0.35.5",
     "typescript": "^6.0.2",
     "vite": "^8.0.0"
   },

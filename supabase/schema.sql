@@ -49,6 +49,7 @@ create table if not exists public.releases (
   num_for_sale int,
   tracklist jsonb,
   duration_sec int,
+  duration_source text,                   -- 'discogs' | 'spotify' | 'itunes'
   original_year int,                      -- year of the Discogs master (first release)
   price_currency text,                    -- currency of lowest_price (USD)
   artwork_url text,                       -- clean cover from Spotify/Apple, if found
@@ -84,6 +85,8 @@ create table if not exists public.collection_items (
   date_added timestamptz,
   cover_url text,                         -- cover chosen by hand for this copy
   cover_thumb text,
+  disc_photo jsonb,                       -- photo used as the disc + crop circle
+  disc_colors text[],                     -- colours sampled from that circle
   created_at timestamptz not null default now()
 );
 create index if not exists collection_items_user_idx on public.collection_items (user_id);
@@ -97,6 +100,7 @@ create table if not exists public.plays (
   release_id bigint not null references public.releases (id),
   played_at timestamptz not null default now(),
   source text not null default 'manual' check (source in ('manual', 'picker')),
+  ended_at timestamptz,                   -- "Done" pressed, or the next record started
   context jsonb
 );
 create index if not exists plays_user_played_idx on public.plays (user_id, played_at desc);

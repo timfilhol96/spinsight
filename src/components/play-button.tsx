@@ -1,14 +1,18 @@
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Disc3 } from 'lucide-react'
+import { Disc3, Square } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '#/components/ui/button'
-import { deletePlay, logPlay } from '#/lib/collection.functions'
+import { deletePlay, logPlay, stopPlay } from '#/lib/collection.functions'
 import type { PickAnswers } from '#/lib/moods'
+import { nowPlayingQuery } from '#/lib/queries'
 import type { CollectionRecord } from '#/lib/records'
 import { cn } from '#/lib/utils'
 
-/** Logs a spin. Only rendered for the collection's owner. */
+/**
+ * Logs a spin and puts the record on the now-playing dock. If this record is
+ * already spinning, offers "Done" instead. Only rendered for the owner.
+ */
 export function PlayButton({
   record,
   source = 'manual',
@@ -26,6 +30,14 @@ export function PlayButton({
 }) {
   const qc = useQueryClient()
   const [pending, setPending] = useState(false)
+  const { data: playing } = useQuery(nowPlayingQuery)
+  const isSpinning = playing?.releaseId === record.releaseId
+
+  const refresh = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: ['profile'] }),
+      qc.invalidateQueries({ queryKey: nowPlayingQuery.queryKey }),
+    ])
 
   async function play() {
     setPending(true)
@@ -33,14 +45,14 @@ export function PlayButton({
       const { id } = await logPlay({
         data: { releaseId: record.releaseId, source, context },
       })
-      await qc.invalidateQueries({ queryKey: ['profile'] })
+      await refresh()
       onLogged?.()
       toast.success(`Enjoy ${record.title}.`, {
         action: {
           label: 'Undo',
           onClick: async () => {
             await deletePlay({ data: { id } })
-            await qc.invalidateQueries({ queryKey: ['profile'] })
+            await refresh()
           },
         },
       })
@@ -49,6 +61,35 @@ export function PlayButton({
     } finally {
       setPending(false)
     }
+  }
+
+  async function done() {
+    if (!playing) return
+    setPending(true)
+    try {
+      await stopPlay({ data: { id: playing.playId } })
+      await refresh()
+    } catch (e) {
+      toast.error(`Couldn't stop: ${(e as Error).message}`)
+    } finally {
+      setPending(false)
+    }
+  }
+
+  if (isSpinning) {
+    return (
+      <Button
+        onClick={done}
+        disabled={pending}
+        size={size}
+        variant="outline"
+        className={cn('border-record-1', className)}
+      >
+        <Disc3 className="animate-spin-record text-record-1" />
+        Spinning now
+        <Square className="fill-current opacity-60" />
+      </Button>
+    )
   }
 
   return (

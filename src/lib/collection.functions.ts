@@ -9,8 +9,8 @@ import type {
   Profile,
   Viewer,
 } from '#/lib/records'
-import { parseVinylLook } from '#/lib/vinyl-color'
-import type { DiscogsFormat, VinylLook } from '#/lib/vinyl-color'
+import { parseVinylLook, withDiscPhoto } from '#/lib/vinyl-color'
+import type { DiscPhoto, DiscogsFormat, VinylLook } from '#/lib/vinyl-color'
 
 // Server functions: the only way the browser reaches the database. Server-only
 // modules are imported inside handlers so they never end up in the client bundle.
@@ -60,6 +60,7 @@ type ReleaseRow = {
   num_for_sale: number | null
   tracklist: CollectionRecord['tracklist']
   duration_sec: number | null
+  duration_source: 'discogs' | 'spotify' | 'itunes' | null
   enriched_at: string | null
   details_version: number
 }
@@ -89,7 +90,7 @@ export const getProfile = createServerFn({ method: 'GET' })
     const { data: items, error } = await supabase
       .from('collection_items')
       .select(
-        'instance_id, date_added, rating, cover_url, cover_thumb, release:releases!inner(*)',
+        'instance_id, date_added, rating, cover_url, cover_thumb, disc_photo, disc_colors, release:releases!inner(*)',
       )
       .eq('user_id', owner.id)
       .order('date_added', { ascending: false })
@@ -153,9 +154,13 @@ export const getProfile = createServerFn({ method: 'GET' })
           ...new Set(formats.flatMap((f) => f.descriptions ?? [])),
         ],
         // Re-parse so parser improvements apply without a re-sync.
-        look: formats.length
-          ? parseVinylLook(formats)
-          : (r.vinyl_look ?? parseVinylLook([])),
+        look: withDiscPhoto(
+          formats.length
+            ? parseVinylLook(formats)
+            : (r.vinyl_look ?? parseVinylLook([])),
+          it.disc_photo as DiscPhoto | null,
+          it.disc_colors as string[] | null,
+        ),
         // Hand-picked cover, then clean/edition artwork, then Discogs.
         coverImage: it.cover_url ?? r.artwork_url ?? r.cover_image,
         thumb: it.cover_thumb ?? r.artwork_thumb ?? r.thumb,
@@ -181,6 +186,7 @@ export const getProfile = createServerFn({ method: 'GET' })
         numForSale: r.num_for_sale,
         tracklist: r.tracklist,
         durationSec: r.duration_sec,
+        durationSource: r.duration_source ?? null,
         enriched: !!r.enriched_at,
         needsDetails:
           !r.enriched_at || (r.details_version ?? 0) < DETAILS_VERSION,
@@ -215,6 +221,9 @@ export const getProfile = createServerFn({ method: 'GET' })
           : null,
       currency: viewer?.preferred_currency ?? owner.preferred_currency ?? null,
       rates: await usdRates(),
+      nowPlaying: await (
+        await import('#/lib/plays.server')
+      ).nowPlayingFor(owner.id),
       plays,
       records,
     }
@@ -310,6 +319,8 @@ export const logPlay = createServerFn({ method: 'POST' })
       .eq('user_id', user.id)
       .eq('release_id', data.releaseId)
     if (!count) throw new Error('That record is not in your collection.')
+    const { endOpenPlays } = await import('#/lib/plays.server')
+    await endOpenPlays(user.id)
     const { data: row, error } = await supabase
       .from('plays')
       .insert({
@@ -392,6 +403,7 @@ async function coverOptionsFor(instanceId: number): Promise<CoverOption[]> {
       url: img.uri,
       thumb: img.uri150 || img.uri,
       label: `Discogs image ${i + 1}`,
+      discogs: { width: img.width ?? 0, height: img.height ?? 0 },
     }),
   )
   return options
@@ -424,4 +436,93 @@ export const setCover = createServerFn({ method: 'POST' })
       .eq('instance_id', data.instanceId)
     if (error) throw new Error(error.message)
     return { ok: true }
+  })
+
+// ---------- now playing ----------
+
+export const getNowPlaying = createServerFn({ method: 'GET' }).handler(
+  async () => {
+    const { currentUser } = await import('#/lib/session.server')
+    const { nowPlayingFor } = await import('#/lib/plays.server')
+    const user = await currentUser()
+    return user ? nowPlayingFor(user.id) : null
+  },
+)
+
+/** "Done": the record is back in its sleeve. */
+export const stopPlay = createServerFn({ method: 'POST' })
+  .validator((d: { id: string }) =>
+    z.object({ id: z.string().uuid() }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { requireUser } = await import('#/lib/session.server')
+    const { db } = await import('#/lib/supabase.server')
+    const user = await requireUser()
+    const { error } = await db()
+      .from('plays')
+      .update({ ended_at: new Date().toISOString() })
+      .eq('id', data.id)
+      .eq('user_id', user.id)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  })
+
+// ---------- disc photo ----------
+
+/**
+ * Uses one of the release's Discogs photos as this copy's disc, cropped to the
+ * circle the owner drew, and samples its colours for the app tint. `url: null`
+ * goes back to the drawn disc.
+ */
+export const setDiscPhoto = createServerFn({ method: 'POST' })
+  .validator(
+    (d: {
+      instanceId: number
+      url: string | null
+      cx?: number
+      cy?: number
+      r?: number
+    }) =>
+      z
+        .object({
+          instanceId: z.number().int().positive(),
+          url: z.string().url().nullable(),
+          cx: z.number().min(0).max(1).optional(),
+          cy: z.number().min(0).max(1).optional(),
+          r: z.number().min(0.05).max(1).optional(),
+        })
+        .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { db } = await import('#/lib/supabase.server')
+    const { sampleDiscColors } = await import('#/lib/disc-photo.server')
+    // Also checks ownership, and that the photo belongs to this release.
+    const options = await coverOptionsFor(data.instanceId)
+    if (data.url === null) {
+      const { error } = await db()
+        .from('collection_items')
+        .update({ disc_photo: null, disc_colors: null })
+        .eq('instance_id', data.instanceId)
+      if (error) throw new Error(error.message)
+      return { colors: [] as string[] }
+    }
+    const option = options.find((o) => o.discogs && o.url === data.url)
+    if (!option || data.cx == null || data.cy == null || data.r == null)
+      throw new Error('That photo is not available for this record.')
+    const crop = { cx: data.cx, cy: data.cy, r: data.r }
+    const sampled = await sampleDiscColors(data.url, crop)
+    const { error } = await db()
+      .from('collection_items')
+      .update({
+        disc_photo: {
+          url: data.url,
+          ...crop,
+          w: sampled.width,
+          h: sampled.height,
+        },
+        disc_colors: sampled.colors,
+      })
+      .eq('instance_id', data.instanceId)
+    if (error) throw new Error(error.message)
+    return { colors: sampled.colors }
   })

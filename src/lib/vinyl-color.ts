@@ -15,6 +15,8 @@ export type VinylPattern =
   | 'smoke'
   | 'picture'
   | 'glow'
+  | 'stripe'
+  | 'pinwheel'
 
 export type VinylLook = {
   pattern: VinylPattern
@@ -23,6 +25,33 @@ export type VinylLook = {
   translucent: boolean
   /** Original Discogs text, for display ("Red Translucent"). */
   label: string | null
+  /** Finer shape hints parsed from the text. */
+  detail?: VinylDetail
+  /** A real photo of the disc, chosen and cropped by the owner. */
+  photo?: DiscPhoto
+}
+
+export type VinylDetail = {
+  /** Splatter: "specks"/"confetti" are fine, "heavy splatter" is heavy. */
+  density?: 'fine' | 'normal' | 'heavy'
+  /** Colour-in-colour: size of the inner blob as a share of the disc. */
+  blob?: number
+  /** Swirl drawn as chunky patches ("smash") rather than streaks. */
+  blotchy?: boolean
+}
+
+/**
+ * A photo used as the disc: the circle (centre cx/cy as a fraction of the
+ * image's width/height, radius r as a fraction of its width) plus the image's
+ * pixel size, so the crop maps onto the drawn disc exactly.
+ */
+export type DiscPhoto = {
+  url: string
+  cx: number
+  cy: number
+  r: number
+  w: number
+  h: number
 }
 
 export type DiscogsFormat = {
@@ -158,10 +187,15 @@ const PATTERN_RULES: Array<[RegExp, VinylPattern]> = [
     'splatter',
   ],
   [/marble|marbled|marbling|swirled marble/, 'marbled'],
+  [
+    /pinwheel|quad|tri-?colou?r|tri colou?r|sectioned|segmented|butterfly|pie\b/,
+    'pinwheel',
+  ],
   [/half|split|side a\s*\/\s*side b|a-side|b-side/, 'split'],
   [/\bin\b|inside|colou?r[- ]in[- ]colou?r|yolk|blob/, 'color-in-color'],
   [/swirl|swirled|mixed|twister|tie[- ]dye|lava|smash|haze|hazy/, 'swirl'],
   [/smoke|smokey|smoky/, 'smoke'],
+  [/stripe|striped|\bbands?\b|\bbanded\b|\brings?\b/, 'stripe'],
 ]
 
 /**
@@ -303,7 +337,25 @@ export function parseVinylLook(
     colors.push(pattern === 'splatter' ? COLOR_NAMES.white : COLOR_NAMES.black)
   }
 
-  return { pattern, colors, translucent, label }
+  const detail: VinylDetail = {}
+  if (pattern === 'splatter')
+    detail.density = /speck|confetti|dust|fleck/.test(text)
+      ? 'fine'
+      : /heavy|mega|lots/.test(text)
+        ? 'heavy'
+        : 'normal'
+  if (pattern === 'color-in-color')
+    detail.blob = /yolk|egg/.test(text)
+      ? 0.6
+      : /blob|splash/.test(text)
+        ? 0.42
+        : 0.52
+  if (pattern === 'swirl' && /smash|chunk|patch|blotch/.test(text))
+    detail.blotchy = true
+  if (['pinwheel', 'stripe'].includes(pattern) && colors.length === 1)
+    colors.push(COLOR_NAMES.black)
+
+  return { pattern, colors, translucent, label, detail }
 }
 
 export function isColoredVinyl(look: VinylLook | null | undefined): boolean {
@@ -378,4 +430,19 @@ export function recordTheme(
       ? DARK_INK
       : LIGHT_INK
   return { primary, secondary, ink }
+}
+
+/**
+ * Applies the owner's disc photo. Sampled colours replace the parsed ones for
+ * theming, except on black vinyl, which keeps the shop palette.
+ */
+export function withDiscPhoto(
+  look: VinylLook,
+  photo: DiscPhoto | null | undefined,
+  sampled: string[] | null | undefined,
+): VinylLook {
+  if (!photo) return look
+  const colors =
+    look.pattern !== 'black' && sampled?.length ? sampled : look.colors
+  return { ...look, photo, colors }
 }

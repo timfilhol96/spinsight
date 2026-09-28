@@ -12,6 +12,7 @@ import { useEffect } from 'react'
 
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 import { MobileNav } from '#/components/mobile-nav'
+import { NowPlayingDock, NowPlayingSpacer } from '#/components/now-playing'
 import { SiteHeader } from '#/components/site-header'
 import { VinylDisc } from '#/components/vinyl-disc'
 import { Button } from '#/components/ui/button'
@@ -112,11 +113,16 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             className="pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:pb-0"
           >
             {children}
+            <NowPlayingSpacer />
           </div>
+          <NowPlayingDock />
           <MobileNav />
           <Toaster
             position="bottom-center"
-            offset={{ bottom: 'calc(5rem + env(safe-area-inset-bottom))' }}
+            // Phones: above the tab bar and the now-playing dock.
+            mobileOffset={{
+              bottom: 'calc(10.5rem + env(safe-area-inset-bottom))',
+            }}
           />
         </TooltipProvider>
         {import.meta.env.DEV && (

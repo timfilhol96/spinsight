@@ -5,9 +5,9 @@ import type { VinylLook } from '#/lib/vinyl-color'
 /**
  * Bump when enrichment starts filling new fields; rows with an older version
  * are re-fetched on the next run. v2: original year, USD prices, artwork.
- * v3: edition-aware artwork.
+ * v3: edition-aware artwork. v4: streaming runtime when Discogs has none.
  */
-export const DETAILS_VERSION = 3
+export const DETAILS_VERSION = 4
 
 export type Play = {
   id: string
@@ -58,6 +58,8 @@ export type CollectionRecord = {
   numForSale: number | null
   tracklist: Array<{ position: string; title: string; duration: string }> | null
   durationSec: number | null
+  /** 'discogs' (tracklist) or the streaming service the runtime came from. */
+  durationSource: 'discogs' | 'spotify' | 'itunes' | null
   /** Has community stats etc. (possibly from an older enrichment version). */
   enriched: boolean
   /** Missing details, or fetched before the current DETAILS_VERSION. */
@@ -83,6 +85,8 @@ export type Profile = {
   currency: string | null
   /** Units per 1 USD, for converting amounts. */
   rates: Rates | null
+  /** What the collection's owner is spinning right now (public). */
+  nowPlaying: NowPlaying | null
   /** Most recent plays first (capped). */
   plays: Play[]
   records: CollectionRecord[]
@@ -100,4 +104,23 @@ export type CoverOption = {
   url: string | null
   thumb: string | null
   label: string
+  /** Set for Discogs images: these can also be used as a disc photo. */
+  discogs?: { width: number; height: number }
+}
+
+export type NowPlaying = {
+  playId: string
+  releaseId: number
+  /** The owner's copy, when it's still in their collection. */
+  instanceId: number | null
+  title: string
+  artist: string
+  look: VinylLook
+  coverImage: string | null
+  thumb: string | null
+  /** Real runtime if known; the player assumes ~45 min otherwise. */
+  durationSec: number | null
+  startedAt: string
+  /** After this it's no longer "now playing" (runtime + grace). */
+  endsAt: string
 }

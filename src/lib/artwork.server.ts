@@ -14,6 +14,8 @@ export type Artwork = {
   url: string
   thumb: string
   source: 'spotify' | 'itunes'
+  /** Spotify album id or Apple collection id, for looking up track lengths. */
+  id: string
   /** The streaming service's album name, e.g. "Peripheral Vision (10 Year Anniversary…)". */
   name: string
 }
@@ -65,6 +67,7 @@ async function spotifySearch(
   const data = (await res.json()) as {
     albums?: {
       items?: Array<{
+        id: string
         name: string
         artists: Array<{ name: string }>
         images?: Array<{ url: string; width?: number }>
@@ -80,6 +83,7 @@ async function spotifySearch(
     return [
       {
         artists: a.artists.map((x) => x.name),
+        id: a.id,
         name: a.name,
         url: bySize[0].url,
         thumb: (mid ?? bySize[0]).url,
@@ -98,6 +102,7 @@ async function itunesSearch(
   if (!res.ok) throw new Error(`iTunes search failed (${res.status})`)
   const data = (await res.json()) as {
     results?: Array<{
+      collectionId: number
       artistName: string
       collectionName: string
       artworkUrl100?: string
@@ -108,6 +113,7 @@ async function itunesSearch(
       ? [
           {
             artists: [r.artistName],
+            id: String(r.collectionId),
             name: r.collectionName,
             // Apple serves any size by rewriting the dimensions in the URL.
             url: r.artworkUrl100.replace(/\/\d+x\d+bb\./, '/1000x1000bb.'),
@@ -174,4 +180,57 @@ export async function findArtwork(
     album: album ? strip(album) : null,
     edition: edition ? strip(edition) : null,
   }
+}
+
+/**
+ * Total length of a streaming album in seconds, used when Discogs has no
+ * track times. If the vinyl's track count is known, only that many tracks are
+ * summed, so digital bonus tracks don't inflate it. Null if unavailable.
+ */
+export async function albumDurationSec(
+  art: Pick<Artwork, 'id' | 'source'>,
+  vinylTrackCount?: number,
+): Promise<number | null> {
+  let lengthsMs: number[] = []
+  if (art.source === 'spotify') {
+    const token = await spotifyAppToken()
+    if (!token) return null
+    const res = await fetch(
+      `https://api.spotify.com/v1/albums/${encodeURIComponent(art.id)}/tracks?limit=50`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    )
+    if (!res.ok) return null
+    const data = (await res.json()) as {
+      items?: Array<{ duration_ms?: number }>
+    }
+    lengthsMs = (data.items ?? []).map((t) => t.duration_ms ?? 0)
+  } else {
+    const res = await fetch(
+      `https://itunes.apple.com/lookup?id=${encodeURIComponent(art.id)}&entity=song`,
+    )
+    if (!res.ok) return null
+    const data = (await res.json()) as {
+      results?: Array<{
+        wrapperType: string
+        discNumber?: number
+        trackNumber?: number
+        trackTimeMillis?: number
+      }>
+    }
+    lengthsMs = (data.results ?? [])
+      .filter((r) => r.wrapperType === 'track')
+      .sort(
+        (a, b) =>
+          (a.discNumber ?? 1) - (b.discNumber ?? 1) ||
+          (a.trackNumber ?? 0) - (b.trackNumber ?? 0),
+      )
+      .map((t) => t.trackTimeMillis ?? 0)
+  }
+  if (!lengthsMs.length) return null
+  const counted =
+    vinylTrackCount && lengthsMs.length >= vinylTrackCount
+      ? lengthsMs.slice(0, vinylTrackCount)
+      : lengthsMs
+  const total = Math.round(counted.reduce((a, b) => a + b, 0) / 1000)
+  return total > 0 ? total : null
 }

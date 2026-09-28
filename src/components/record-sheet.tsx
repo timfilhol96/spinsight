@@ -11,11 +11,12 @@ import {
 import { VinylSwatch } from '#/components/record-card'
 import { VinylDisc } from '#/components/vinyl-disc'
 import { CoverPicker } from '#/components/cover-picker'
+import { DiscPhotoEditor } from '#/components/disc-photo-editor'
 import { PlayButton, playSummary } from '#/components/play-button'
 import { useMoney, useProfile } from '#/lib/use-profile'
 import { formatDuration } from '#/lib/records'
 import type { CollectionRecord } from '#/lib/records'
-import { useRecordTheme } from '#/lib/theme'
+import { THEME_PRIORITY, useRecordTheme } from '#/lib/theme'
 
 function Stat({
   icon: Icon,
@@ -38,7 +39,7 @@ function Stat({
 
 function RecordDetail({ record }: { record: CollectionRecord }) {
   // The whole app takes on this pressing's colour while it's open.
-  useRecordTheme(record.look)
+  useRecordTheme(record.look, THEME_PRIORITY.focus)
   const money = useMoney()
   const { isOwner } = useProfile()
   const wantRatio =
@@ -112,7 +113,12 @@ function RecordDetail({ record }: { record: CollectionRecord }) {
         </div>
       )}
 
-      {isOwner && <CoverPicker record={record} />}
+      {isOwner && (
+        <div className="space-y-2">
+          <CoverPicker record={record} />
+          <DiscPhotoEditor record={record} />
+        </div>
+      )}
 
       <div className="space-y-5">
         <div className="flex items-center gap-2 rounded-lg border bg-background/60 p-3">
@@ -185,6 +191,24 @@ function RecordDetail({ record }: { record: CollectionRecord }) {
             Community stats appear once details are fetched.
           </p>
         )}
+
+        <div>
+          <p className="kicker mb-1">Length</p>
+          {duration ? (
+            <p className="text-sm">
+              {duration}
+              <span className="ml-1.5 text-xs text-muted-foreground">
+                {record.durationSource === 'discogs'
+                  ? 'from the tracklist'
+                  : `digital album length (${record.durationSource === 'itunes' ? 'Apple Music' : 'Spotify'})`}
+              </span>
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Unknown: no track times on Discogs or streaming services.
+            </p>
+          )}
+        </div>
 
         {record.labels.length > 0 && (
           <div>

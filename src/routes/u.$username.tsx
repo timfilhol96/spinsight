@@ -114,6 +114,21 @@ function ProfileLayout() {
             <p className="font-mono text-xs text-muted-foreground">
               @{profile.username} · synced {relativeTime(profile.lastSyncedAt)}
             </p>
+            {profile.nowPlaying && !profile.isOwner && (
+              <p className="mt-1.5 flex items-center gap-1.5 text-xs">
+                <VinylDisc
+                  look={profile.nowPlaying.look}
+                  labelImage={profile.nowPlaying.thumb}
+                  seed={profile.nowPlaying.releaseId}
+                  spinning
+                  className="size-4"
+                />
+                <span className="text-muted-foreground">Now spinning</span>
+                <span className="font-medium">
+                  {profile.nowPlaying.artist} – {profile.nowPlaying.title}
+                </span>
+              </p>
+            )}
           </div>
         </div>
 

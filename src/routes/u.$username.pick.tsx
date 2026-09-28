@@ -34,7 +34,7 @@ import type {
 } from '#/lib/moods'
 import type { CollectionRecord } from '#/lib/records'
 import { formatDuration } from '#/lib/records'
-import { useRecordTheme } from '#/lib/theme'
+import { THEME_PRIORITY, useRecordTheme } from '#/lib/theme'
 import { useProfile } from '#/lib/use-profile'
 import { cn } from '#/lib/utils'
 import { detectWeather } from '#/lib/weather'
@@ -488,7 +488,7 @@ function Result({
   onDetails: () => void
 }) {
   const r: CollectionRecord = pick.record
-  useRecordTheme(r.look)
+  useRecordTheme(r.look, THEME_PRIORITY.focus)
   const duration = formatDuration(r.durationSec)
   const context = mode === 'guided' ? { ...answers, mode } : { mode }
 

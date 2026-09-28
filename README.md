@@ -48,6 +48,12 @@ TanStack Query · Supabase (Postgres) · Vercel.
 - **Picker** (`src/lib/moods.ts`): Discogs styles are mapped to energy,
   darkness and atmosphere values, then scored against mood, weather
   (Open-Meteo), time of day, length and how recently each record was played.
+- **Now playing** (`src/components/now-playing.tsx`): logging a spin docks the
+  record on every page and tints the app until "Done" or its runtime ends.
+  Runtimes come from Discogs track times, else the streaming album's.
+- **Disc photos** (`src/components/disc-photo-editor.tsx`): owners can crop a
+  Discogs photo of the vinyl to use as the disc; colours are sampled server-side
+  with sharp (`src/lib/disc-photo.server.ts`).
 - **Colour variants** (`src/lib/vinyl-color.ts`) parse Discogs format text such
   as "Clear w/ Blue Splatter" into colours and a pattern.
   `src/components/vinyl-disc.tsx` draws the disc, and `useRecordTheme`

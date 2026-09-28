@@ -5,36 +5,68 @@ import type { VinylLook } from '#/lib/vinyl-color'
 // ---------- record-driven accent ----------
 
 /**
- * While mounted with a coloured record, retints the app (accent, page glow)
- * to that pressing. Black vinyl leaves the current palette alone; unmount
- * restores it. The
- * @property registrations in styles.css make the change fade rather than snap.
+ * How strongly a tint claims the app. Several can be active at once (a page
+ * tint, the record now playing, an open record panel); the highest priority
+ * wins, and among equals the most recent.
  */
-export function useRecordTheme(look: VinylLook | null | undefined) {
+export const THEME_PRIORITY = {
+  /** Ambient page colour: Year in Vinyl, the landing page demo. */
+  page: 1,
+  /** The record currently spinning. */
+  playing: 2,
+  /** A record you're looking at right now: record panel, picker result. */
+  focus: 3,
+} as const
+
+type ThemeClaim = { look: VinylLook; priority: number; order: number }
+const claims = new Map<number, ThemeClaim>()
+let nextId = 1
+let nextOrder = 1
+
+function applyTopClaim() {
+  const root = document.documentElement
+  let top: ThemeClaim | null = null
+  for (const c of claims.values()) {
+    if (
+      !top ||
+      c.priority > top.priority ||
+      (c.priority === top.priority && c.order > top.order)
+    )
+      top = c
+  }
+  const theme = top ? recordTheme(top.look) : null
+  if (!theme) {
+    root.style.removeProperty('--record-1')
+    root.style.removeProperty('--record-2')
+    root.style.removeProperty('--record-ink')
+    return
+  }
+  root.style.setProperty('--record-1', theme.primary)
+  root.style.setProperty('--record-2', theme.secondary)
+  root.style.setProperty('--record-ink', theme.ink)
+}
+
+/**
+ * While mounted with a coloured record, retints the app (accent, page glow)
+ * to that pressing. Black vinyl makes no claim. The @property registrations
+ * in styles.css make changes fade rather than snap.
+ */
+export function useRecordTheme(
+  look: VinylLook | null | undefined,
+  priority: number = THEME_PRIORITY.page,
+) {
   const key = look ? `${look.pattern}:${look.colors.join(',')}` : ''
   useEffect(() => {
-    const root = document.documentElement
-    const theme = recordTheme(look)
-    if (!theme) return
-    const vars = {
-      '--record-1': theme.primary,
-      '--record-2': theme.secondary,
-      '--record-ink': theme.ink,
-    }
-    // Restore whatever was there before (not just remove), so a record opened
-    // on a page that is itself tinted hands the page its colour back on close.
-    const previous = Object.keys(vars).map(
-      (k) => [k, root.style.getPropertyValue(k)] as const,
-    )
-    for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v)
+    if (!look || !recordTheme(look)) return
+    const id = nextId++
+    claims.set(id, { look, priority, order: nextOrder++ })
+    applyTopClaim()
     return () => {
-      for (const [k, v] of previous) {
-        if (v) root.style.setProperty(k, v)
-        else root.style.removeProperty(k)
-      }
+      claims.delete(id)
+      applyTopClaim()
     }
     // `key` captures everything about `look` that affects the theme.
-  }, [key])
+  }, [key, priority])
 }
 
 // ---------- light / dark ----------

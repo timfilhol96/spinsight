@@ -10,7 +10,7 @@ import type {
   DiscogsRelease,
   OAuthToken,
 } from '#/lib/discogs.server'
-import { findArtwork } from '#/lib/artwork.server'
+import { albumDurationSec, findArtwork } from '#/lib/artwork.server'
 import { editionTokens } from '#/lib/editions'
 import { env } from '#/lib/env.server'
 import { findSpotifyArtist } from '#/lib/spotify.server'
@@ -247,7 +247,14 @@ export async function enrichBatch(
         ).catch(() => null)
       : null
     const tracks = (full.tracklist ?? []).filter((t) => t.type_ === 'track')
-    const duration = tracks.reduce((s, t) => s + parseDuration(t.duration), 0)
+    // Only trust Discogs' runtime when every track has a time; a partial sum
+    // would undercount.
+    const discogsDuration = tracks.every((t) => parseDuration(t.duration) > 0)
+      ? tracks.reduce((s, t) => s + parseDuration(t.duration), 0)
+      : 0
+    let duration: { sec: number; source: string } | null = discogsDuration
+      ? { sec: discogsDuration, source: 'discogs' }
+      : null
 
     // Search under the artist's real name, not a Discogs alias ("Jfff Mills").
     const searchArtist = cleanArtistName(rel.artists[0]?.name ?? '')
@@ -272,6 +279,15 @@ export async function enrichBatch(
         album_artwork_thumb: found.album?.thumb ?? null,
         artwork_checked_at: new Date().toISOString(),
       }
+      // No Discogs track times: use the digital album's, counting only as
+      // many tracks as the vinyl has.
+      if (!duration && found.album) {
+        const sec = await albumDurationSec(
+          found.album,
+          tracks.length || undefined,
+        )
+        if (sec) duration = { sec, source: found.album.source }
+      }
     } catch {
       // Sources down: leave artwork_checked_at alone and try again next run.
     }
@@ -292,7 +308,8 @@ export async function enrichBatch(
           title: t.title,
           duration: t.duration,
         })),
-        duration_sec: duration || null,
+        duration_sec: duration?.sec ?? null,
+        duration_source: duration?.source ?? null,
         // A master's year is the first release; fall back to this pressing.
         original_year: master?.year || rel.year || null,
         is_special_edition: isEdition,
