@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { BarChart3, Palette, Shuffle, Users } from 'lucide-react'
+import { SiteFooter } from '#/components/site-footer'
 import { Button } from '#/components/ui/button'
 import { VinylDisc } from '#/components/vinyl-disc'
 import { USERNAME_RE } from '#/lib/friends'
@@ -77,100 +78,162 @@ function Landing() {
   }, [])
 
   return (
-    <main className="page-wrap py-12 md:py-20">
-      <section className="grid items-center gap-12 md:grid-cols-[1.1fr_1fr]">
-        <div className="rise-in">
-          {invite && (
-            <p className="mb-6 flex items-center gap-2 rounded-xl border border-record-1/50 bg-card/80 px-4 py-3 text-sm">
-              <Users className="size-4 shrink-0 text-record-1" />
-              <span>
-                <span className="font-semibold">{invite}</span> invited you to
-                compare record collections. Sign in and you'll follow them
-                straight away.
-              </span>
+    <>
+      <main className="page-wrap py-12 md:py-20">
+        <section className="grid items-center gap-12 md:grid-cols-[1.1fr_1fr]">
+          <div className="rise-in">
+            {invite && (
+              <p className="mb-6 flex items-center gap-2 rounded-xl border border-record-1/50 bg-card/80 px-4 py-3 text-sm">
+                <Users className="size-4 shrink-0 text-record-1" />
+                <span>
+                  <span className="font-semibold">{invite}</span> invited you to
+                  compare record collections. Sign in and you'll follow them
+                  straight away.
+                </span>
+              </p>
+            )}
+            <p className="kicker">For people who own too many records</p>
+            <h1 className="mt-3 text-5xl leading-[1.02] font-bold tracking-tight md:text-7xl">
+              Your crates,
+              <br />
+              <span className="text-record-1 italic">decoded.</span>
+            </h1>
+            <p className="mt-6 max-w-md text-lg text-muted-foreground">
+              Connect your Discogs collection to see what it says about you, and
+              let it pick what goes on the turntable next.
             </p>
-          )}
-          <p className="kicker">For people who own too many records</p>
-          <h1 className="mt-3 text-5xl leading-[1.02] font-bold tracking-tight md:text-7xl">
-            Your crates,
-            <br />
-            <span className="text-record-1 italic">decoded.</span>
-          </h1>
-          <p className="mt-6 max-w-md text-lg text-muted-foreground">
-            Connect your Discogs collection to see what it says about you, and
-            let it pick what goes on the turntable next.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Button
-              asChild
-              size="lg"
-              className="bg-record-1 text-record-ink hover:bg-record-1/90"
-            >
-              <a href={signIn}>Sign in with Discogs</a>
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              Free. Read-only access to your collection.
-            </span>
-          </div>
-
-          <ul className="mt-12 grid gap-4 sm:grid-cols-2">
-            {[
-              {
-                icon: BarChart3,
-                title: 'Collection stats',
-                body: 'Genres, decades, labels, value, rarities.',
-              },
-              {
-                icon: Shuffle,
-                title: 'Record picker',
-                body: 'Random, or a few quick questions.',
-              },
-              {
-                icon: Users,
-                title: 'Friends',
-                body: 'See what they spin, compare crates.',
-              },
-              {
-                icon: Palette,
-                title: 'Colour variants',
-                body: 'The app takes on the colour of your pressing.',
-              },
-            ].map(({ icon: Icon, title, body }) => (
-              <li key={title} className="rounded-xl border bg-card/70 p-4">
-                <Icon className="size-5 text-record-1" />
-                <p className="mt-2 text-sm font-semibold">{title}</p>
-                <p className="text-sm text-muted-foreground">{body}</p>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="relative mx-auto w-full max-w-md">
-          <VinylDisc
-            look={SAMPLES[active].look}
-            seed={SAMPLES[active].seed}
-            spinning
-            className="w-full"
-          />
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
-            {SAMPLES.map((s, i) => (
-              <button
-                key={s.text}
-                type="button"
-                onClick={() => setActive(i)}
-                className={
-                  'rounded-full border px-3 py-1 font-mono text-xs transition ' +
-                  (i === active
-                    ? 'border-record-1 bg-record-1 text-record-ink'
-                    : 'bg-card hover:border-record-1')
-                }
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <Button
+                asChild
+                size="lg"
+                className="bg-record-1 text-record-ink hover:bg-record-1/90"
               >
-                {s.text}
-              </button>
+                <a href={signIn}>Sign in with Discogs</a>
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Free. Read-only access to your collection.
+              </span>
+            </div>
+
+            <ul className="mt-12 grid gap-4 sm:grid-cols-2">
+              {[
+                {
+                  icon: BarChart3,
+                  title: 'Collection stats',
+                  body: 'Genres, decades, labels, value, rarities.',
+                },
+                {
+                  icon: Shuffle,
+                  title: 'Record picker',
+                  body: 'Random, or a few quick questions.',
+                },
+                {
+                  icon: Users,
+                  title: 'Friends',
+                  body: 'See what they spin, compare crates.',
+                },
+                {
+                  icon: Palette,
+                  title: 'Colour variants',
+                  body: 'The app takes on the colour of your pressing.',
+                },
+              ].map(({ icon: Icon, title, body }) => (
+                <li key={title} className="rounded-xl border bg-card/70 p-4">
+                  <Icon className="size-5 text-record-1" />
+                  <p className="mt-2 text-sm font-semibold">{title}</p>
+                  <p className="text-sm text-muted-foreground">{body}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="relative mx-auto w-full max-w-md">
+            <VinylDisc
+              look={SAMPLES[active].look}
+              seed={SAMPLES[active].seed}
+              spinning
+              className="w-full"
+            />
+            <div className="mt-6 flex flex-wrap justify-center gap-2">
+              {SAMPLES.map((s, i) => (
+                <button
+                  key={s.text}
+                  type="button"
+                  onClick={() => setActive(i)}
+                  className={
+                    'rounded-full border px-3 py-1 font-mono text-xs transition ' +
+                    (i === active
+                      ? 'border-record-1 bg-record-1 text-record-ink'
+                      : 'bg-card hover:border-record-1')
+                  }
+                >
+                  {s.text}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <AppPreview />
+      </main>
+      <SiteFooter />
+    </>
+  )
+}
+
+/** Real screenshots, so visitors see the app before handing over Discogs. */
+function AppPreview() {
+  return (
+    <section className="mt-24" aria-labelledby="preview-title">
+      <p className="kicker">A look inside</p>
+      <h2
+        id="preview-title"
+        className="mt-1 text-3xl font-bold tracking-tight md:text-4xl"
+      >
+        Every pressing in its own colour
+      </h2>
+      <p className="mt-2 max-w-xl text-muted-foreground">
+        Your shelf, the stats behind it, and a year-by-year recap you can share.
+        Here's a real collection.
+      </p>
+      {/* Phones: the phone view, since a desktop shot would be unreadable. */}
+      <figure className="mx-auto mt-8 w-[72%] max-w-72 overflow-hidden rounded-[1.75rem] border-[6px] border-[#1b120c] shadow-2xl md:hidden">
+        <img
+          src="/screenshots/collection-narrow.webp"
+          width={780}
+          height={1688}
+          loading="lazy"
+          alt="A collection on a phone: album covers labelled with their year and vinyl colour."
+          className="block h-auto w-full"
+        />
+      </figure>
+      <div className="relative mt-8 hidden pb-10 md:block md:pr-24">
+        <figure className="sleeve-shadow overflow-hidden rounded-xl border bg-card">
+          <div className="flex items-center gap-1.5 border-b bg-muted/60 px-3 py-2">
+            {[0, 1, 2].map((i) => (
+              <span key={i} className="size-2.5 rounded-full bg-border" />
             ))}
           </div>
-        </div>
-      </section>
-    </main>
+          <img
+            src="/screenshots/collection-wide.webp"
+            width={1280}
+            height={800}
+            loading="lazy"
+            alt="A collection page: a grid of album covers, each labelled with its release year and vinyl colour, with genre filters above."
+            className="block h-auto w-full"
+          />
+        </figure>
+        <figure className="absolute right-0 -bottom-2 w-[23%] max-w-56 overflow-hidden rounded-[1.75rem] border-[6px] border-[#1b120c] shadow-2xl">
+          <img
+            src="/screenshots/year-narrow.webp"
+            width={780}
+            height={1688}
+            loading="lazy"
+            alt="Year in Vinyl on a phone: records added, coloured pressings, top genre and style for the year."
+            className="block h-auto w-full"
+          />
+        </figure>
+      </div>
+    </section>
   )
 }

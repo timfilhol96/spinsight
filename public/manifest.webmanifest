@@ -1,7 +1,7 @@
 {
   "name": "Spinsight",
   "short_name": "Spinsight",
-  "description": "Stats on your Discogs record collection, and help picking what to play next.",
+  "description": "Stats on your Discogs record collection, help picking what to play next, and friends to compare with.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -9,8 +9,51 @@
   "theme_color": "#f3ebdd",
   "categories": ["music", "lifestyle"],
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/collection-wide.webp",
+      "sizes": "1280x800",
+      "type": "image/webp",
+      "form_factor": "wide",
+      "label": "Your collection, with each pressing's colour"
+    },
+    {
+      "src": "/screenshots/year-wide.webp",
+      "sizes": "1280x800",
+      "type": "image/webp",
+      "form_factor": "wide",
+      "label": "Year in Vinyl: your year of record buying"
+    },
+    {
+      "src": "/screenshots/collection-narrow.webp",
+      "sizes": "780x1688",
+      "type": "image/webp",
+      "form_factor": "narrow",
+      "label": "Your collection on your phone"
+    },
+    {
+      "src": "/screenshots/year-narrow.webp",
+      "sizes": "780x1688",
+      "type": "image/webp",
+      "form_factor": "narrow",
+      "label": "Year in Vinyl on your phone"
+    }
   ]
 }

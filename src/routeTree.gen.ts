@@ -10,7 +10,11 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as ListeningRouteImport } from './routes/listening'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as TrustRouteImport } from './routes/trust'
 import { Route as FriendsIndexRouteImport } from './routes/friends.index'
 import { Route as FriendsUsernameRouteImport } from './routes/friends.$username'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
@@ -30,9 +34,29 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ListeningRoute = ListeningRouteImport.update({
   id: '/listening',
   path: '/listening',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrustRoute = TrustRouteImport.update({
+  id: '/trust',
+  path: '/trust',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FriendsIndexRoute = FriendsIndexRouteImport.update({
@@ -103,7 +127,11 @@ const ApiAuthDiscogsStartRoute = ApiAuthDiscogsStartRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/listening': typeof ListeningRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
+  '/trust': typeof TrustRoute
   '/friends/$username': typeof FriendsUsernameRouteWithChildren
   '/u/$username': typeof UUsernameRouteWithChildren
   '/friends/': typeof FriendsIndexRoute
@@ -120,7 +148,11 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/listening': typeof ListeningRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
+  '/trust': typeof TrustRoute
   '/friends': typeof FriendsIndexRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/cron/sync': typeof ApiCronSyncRoute
@@ -136,7 +168,11 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/listening': typeof ListeningRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
+  '/trust': typeof TrustRoute
   '/friends/$username': typeof FriendsUsernameRouteWithChildren
   '/u/$username': typeof UUsernameRouteWithChildren
   '/friends/': typeof FriendsIndexRoute
@@ -155,7 +191,11 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
     | '/listening'
+    | '/privacy'
+    | '/terms'
+    | '/trust'
     | '/friends/$username'
     | '/u/$username'
     | '/friends/'
@@ -172,7 +212,11 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
     | '/listening'
+    | '/privacy'
+    | '/terms'
+    | '/trust'
     | '/friends'
     | '/api/auth/logout'
     | '/api/cron/sync'
@@ -187,7 +231,11 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/about'
     | '/listening'
+    | '/privacy'
+    | '/terms'
+    | '/trust'
     | '/friends/$username'
     | '/u/$username'
     | '/friends/'
@@ -205,7 +253,11 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AboutRoute: typeof AboutRoute
   ListeningRoute: typeof ListeningRoute
+  PrivacyRoute: typeof PrivacyRoute
+  TermsRoute: typeof TermsRoute
+  TrustRoute: typeof TrustRoute
   FriendsUsernameRoute: typeof FriendsUsernameRouteWithChildren
   UUsernameRoute: typeof UUsernameRouteWithChildren
   FriendsIndexRoute: typeof FriendsIndexRoute
@@ -224,11 +276,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/listening': {
       id: '/listening'
       path: '/listening'
       fullPath: '/listening'
       preLoaderRoute: typeof ListeningRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/trust': {
+      id: '/trust'
+      path: '/trust'
+      fullPath: '/trust'
+      preLoaderRoute: typeof TrustRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/friends/': {
@@ -359,7 +439,11 @@ const UUsernameRouteWithChildren = UUsernameRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AboutRoute: AboutRoute,
   ListeningRoute: ListeningRoute,
+  PrivacyRoute: PrivacyRoute,
+  TermsRoute: TermsRoute,
+  TrustRoute: TrustRoute,
   FriendsUsernameRoute: FriendsUsernameRouteWithChildren,
   UUsernameRoute: UUsernameRouteWithChildren,
   FriendsIndexRoute: FriendsIndexRoute,

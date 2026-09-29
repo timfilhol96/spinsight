@@ -59,6 +59,15 @@ TanStack Query · Supabase (Postgres) · Vercel.
   wantlist is mirrored on every sync). The compare pages (taste match, crate
   overlap, a joint year) run in the browser on both cached profiles. Anyone
   can keep their spins private while their collection stays public.
+- **Your data** (`src/lib/account.functions.ts`, on `/privacy`): signed-in
+  users can download everything stored about them as JSON or delete their
+  account (every table cascades from `users`). Privacy, Terms, Trust and How
+  it works live in `src/routes/{privacy,terms,trust,about}.tsx`; update
+  `POLICIES_UPDATED` in `src/lib/site.ts` when their content changes.
+- **Link preview and install screenshots:** `public/og.jpg` and
+  `public/screenshots/` are real app screenshots (no avatars, no collection
+  value). `scripts/preview/og-card.html` is the card's source, with
+  instructions to regenerate it.
 - **Disc photos** (`src/components/disc-photo-editor.tsx`): owners can crop a
   Discogs photo of the vinyl to use as the disc; colours are sampled server-side
   with sharp (`src/lib/disc-photo.server.ts`).

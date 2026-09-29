@@ -1,0 +1,159 @@
+<!doctype html>
+<!--
+  Link-preview card (public/og.jpg, 1200×630), built from real app
+  screenshots: public/screenshots/collection-wide.webp and a tall phone
+  capture of Year in Vinyl (phone-year-tall.webp, 390px wide at 2x).
+  To regenerate: open this file in Chrome with the device toolbar set to
+  1200×630 at 1x, run "Capture screenshot", and save it as public/og.jpg
+  (JPEG, ~85% quality). Keep private things out of the screenshots:
+  collection value, and avatars (block their URLs so initials show).
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=1200" />
+    <title>Spinsight card</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,400..900,50..100&family=DM+Sans:opsz,wght@9..40,400..800&family=DM+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #f3ebdd;
+        --ink: #2a1e16;
+        --muted: #7a6654;
+        --accent: #b5462a;
+        --border: #dccbb0;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      html,
+      body {
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+      }
+      body {
+        position: relative;
+        background:
+          radial-gradient(
+            ellipse 70% 90% at 85% 10%,
+            rgb(181 70 42 / 0.16),
+            transparent 60%
+          ),
+          var(--bg);
+        color: var(--ink);
+        font-family: 'DM Sans', system-ui, sans-serif;
+      }
+      .copy {
+        position: absolute;
+        left: 72px;
+        top: 70px;
+        width: 470px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        font-family: 'Fraunces', Georgia, serif;
+        font-size: 34px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      .brand img {
+        width: 48px;
+        height: 48px;
+      }
+      .kicker {
+        margin-top: 64px;
+        font-family: 'DM Mono', monospace;
+        font-size: 15px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      h1 {
+        margin-top: 14px;
+        font-family: 'Fraunces', Georgia, serif;
+        font-size: 84px;
+        line-height: 0.98;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      h1 em {
+        color: var(--accent);
+      }
+      .sub {
+        margin-top: 24px;
+        font-size: 23px;
+        line-height: 1.4;
+        color: var(--muted);
+      }
+      .chips {
+        position: absolute;
+        left: 72px;
+        bottom: 60px;
+        display: flex;
+        gap: 10px;
+      }
+      .chips span {
+        border: 1.5px solid var(--border);
+        background: #fbf6ec;
+        border-radius: 999px;
+        padding: 8px 16px;
+        font-size: 17px;
+        font-weight: 500;
+      }
+      .desktop {
+        position: absolute;
+        left: 600px;
+        top: 70px;
+        width: 760px;
+        height: 475px;
+        border-radius: 16px;
+        overflow: hidden;
+        border: 1.5px solid var(--border);
+        box-shadow:
+          0 30px 60px -25px rgb(42 30 22 / 0.45),
+          0 8px 20px -10px rgb(42 30 22 / 0.3);
+        background: url('../../public/screenshots/collection-wide.webp')
+          0 -210px / 1110px auto no-repeat;
+      }
+      .phone {
+        position: absolute;
+        left: 548px;
+        top: 250px;
+        width: 205px;
+        height: 420px;
+        border-radius: 30px;
+        border: 7px solid #1b120c;
+        overflow: hidden;
+        box-shadow:
+          0 30px 50px -20px rgb(42 30 22 / 0.55),
+          0 6px 14px -6px rgb(42 30 22 / 0.35);
+        background: url('phone-year-tall.webp') 0 -150px / 191px auto no-repeat;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="copy">
+      <div class="brand">
+        <img src="../../public/logo.svg" alt="" />Spinsight
+      </div>
+      <p class="kicker">For your Discogs collection</p>
+      <h1>Your crates, <em>decoded.</em></h1>
+      <p class="sub">
+        Stats, a record picker and friends to compare with. Free.
+      </p>
+    </div>
+    <div class="chips">
+      <span>Insights</span><span>Picker</span><span>Friends</span>
+    </div>
+    <div class="desktop"></div>
+    <div class="phone"></div>
+  </body>
+</html>

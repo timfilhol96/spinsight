@@ -380,16 +380,16 @@ function Leaderboard({ rows }: { rows: LeaderRow[] }) {
           No spins logged this week yet.
         </p>
       ) : (
-        <table className="w-full text-sm">
+        <table className="w-full table-fixed text-sm">
           <thead>
             <tr className="text-left text-xs text-muted-foreground">
               <th className="pb-2 font-medium">
                 <span className="sr-only">Rank and name</span>
               </th>
-              <th className="pb-2 text-right font-medium">Spins</th>
-              <th className="pb-2 text-right font-medium">Time</th>
+              <th className="w-12 pb-2 text-right font-medium">Spins</th>
+              <th className="w-16 pb-2 text-right font-medium">Time</th>
               <th
-                className="pb-2 text-right font-medium"
+                className="w-18 pb-2 text-right font-medium"
                 title="Records owned 6+ months that got their first logged spin"
               >
                 Dusted off
@@ -405,7 +405,7 @@ function Leaderboard({ rows }: { rows: LeaderRow[] }) {
                   r.isYou && 'font-semibold',
                 )}
               >
-                <td className="max-w-0 py-2 pr-2">
+                <td className="py-2 pr-2">
                   <span className="flex items-center gap-2">
                     <span className="w-5 shrink-0 text-center text-xs tabular-nums">
                       {r.spins > 0 && i < 3 ? MEDALS[i] : i + 1}

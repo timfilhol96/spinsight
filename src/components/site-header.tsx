@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { LogOut, Moon, Sun, SunMoon, User, Users } from 'lucide-react'
+import { LogOut, Moon, Shield, Sun, SunMoon, User, Users } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '#/components/ui/avatar'
 import { Button } from '#/components/ui/button'
 import {
@@ -146,6 +146,11 @@ export function SiteHeader() {
                 <DropdownMenuItem asChild>
                   <Link to="/friends">
                     <Users /> Friends
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/privacy" hash="your-data">
+                    <Shield /> Privacy & data
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>

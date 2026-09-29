@@ -19,6 +19,7 @@ import { Button } from '#/components/ui/button'
 import { Toaster } from '#/components/ui/sonner'
 import { TooltipProvider } from '#/components/ui/tooltip'
 import { viewerQuery } from '#/lib/queries'
+import { SITE_URL } from '#/lib/site'
 import { colorSchemeScript } from '#/lib/theme'
 
 import appCss from '../styles.css?url'
@@ -28,7 +29,7 @@ interface MyRouterContext {
 }
 
 const DESCRIPTION =
-  'Stats on your Discogs record collection, and help picking what to play next.'
+  'Stats on your Discogs record collection, help picking what to play next, and friends to compare with.'
 
 export const Route = createRootRouteWithContext<MyRouterContext>()({
   beforeLoad: async ({ context }) => {
@@ -58,8 +59,19 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       { property: 'og:site_name', content: 'Spinsight' },
       { property: 'og:title', content: 'Spinsight' },
       { property: 'og:description', content: DESCRIPTION },
-      { property: 'og:image', content: '/icon-512.png' },
-      { name: 'twitter:card', content: 'summary' },
+      // Absolute: most link unfurlers ignore relative image URLs.
+      { property: 'og:type', content: 'website' },
+      { property: 'og:url', content: SITE_URL },
+      { property: 'og:image', content: `${SITE_URL}/og.jpg` },
+      { property: 'og:image:width', content: '1200' },
+      { property: 'og:image:height', content: '630' },
+      {
+        property: 'og:image:alt',
+        content:
+          'Spinsight: a record collection shown as a grid of album covers, with a Year in Vinyl summary on a phone.',
+      },
+      { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'twitter:image', content: `${SITE_URL}/og.jpg` },
     ],
     links: [
       { rel: 'icon', href: '/logo.svg', type: 'image/svg+xml' },
