@@ -1,39 +1,51 @@
-import { createFileRoute, notFound, useNavigate } from '@tanstack/react-router'
-import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  Link,
+  createFileRoute,
+  useNavigate,
+  useRouter,
+} from '@tanstack/react-router'
+import {
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from '@tanstack/react-query'
+import { useEffect, useMemo, useState } from 'react'
 import { FastForward, RotateCcw } from 'lucide-react'
+import { toast } from 'sonner'
 import { ListeningRoom } from '#/components/listening-room'
 import { VinylDisc } from '#/components/vinyl-disc'
+import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
+import { logPlay } from '#/lib/collection.functions'
 import { nowPlayingQuery, profileQuery } from '#/lib/queries'
-import type { CollectionRecord, Profile } from '#/lib/records'
+import type { CollectionRecord, NowPlaying, Profile } from '#/lib/records'
 import { cn } from '#/lib/utils'
 
-// Listening room mock-up. Only exists in `npm run dev`. Practice spins live
-// in this tab: nothing is logged and nothing is written to the database, so
-// stats stay untouched. A mock clock fast-forwards through a record to try
-// the track follower and the flip prompt.
+// The listening room for the record you're spinning right now, opened from
+// the now-playing dock. Locally (`npm run dev`) it also offers practice spins
+// (?release=<id>): nothing is logged, and a mock clock fast-forwards through
+// the record to try the track follower and the flip.
 
-type Search = { release?: number; started?: string }
+type Search = { release?: number }
 
-export const Route = createFileRoute('/dev/listening')({
+export const Route = createFileRoute('/listening')({
   validateSearch: (s: Record<string, unknown>): Search => ({
-    release: Number(s.release) > 0 ? Number(s.release) : undefined,
-    started: typeof s.started === 'string' ? s.started : undefined,
+    release:
+      import.meta.env.DEV && Number(s.release) > 0
+        ? Number(s.release)
+        : undefined,
   }),
-  beforeLoad: () => {
-    if (!import.meta.env.DEV) throw notFound()
-  },
   loader: async ({ context }) => {
     if (context.viewer)
       await context.queryClient.ensureQueryData(
         profileQuery(context.viewer.username),
       )
   },
-  component: DevListening,
+  head: () => ({ meta: [{ title: 'Listening room · Spinsight' }] }),
+  component: Listening,
 })
 
-function DevListening() {
+function Listening() {
   const { viewer } = Route.useRouteContext()
   // Time-dependent: render on the client only.
   const [mounted, setMounted] = useState(false)
@@ -41,7 +53,7 @@ function DevListening() {
   if (!viewer)
     return (
       <main className="page-wrap py-24 text-center">
-        <p>Sign in with Discogs first, then come back here.</p>
+        <p>Sign in with Discogs to open your listening room.</p>
       </main>
     )
   if (!mounted) return null
@@ -50,33 +62,149 @@ function DevListening() {
 
 function Session({ username }: { username: string }) {
   const profile = useSuspenseQuery(profileQuery(username)).data as Profile
-  const { release, started } = Route.useSearch()
-  const navigate = useNavigate({ from: '/dev/listening' })
-  const record = profile.records.find((r) => r.releaseId === release)
+  const { release } = Route.useSearch()
+  const navigate = useNavigate({ from: '/listening' })
+  const router = useRouter()
+  const qc = useQueryClient()
+  const { data: playing, isPending } = useQuery(nowPlayingQuery)
 
-  const open = useCallback(
-    (r: CollectionRecord | null, startedAt?: string) =>
-      void navigate({
-        search: r ? { release: r.releaseId, started: startedAt } : {},
-      }),
-    [navigate],
-  )
+  const close = () => {
+    if (window.history.length > 1) router.history.back()
+    else void navigate({ to: '/u/$username', params: { username } })
+  }
 
-  if (!record) return <Picker profile={profile} onPick={open} />
+  async function playNext(r: CollectionRecord) {
+    try {
+      await logPlay({ data: { releaseId: r.releaseId, source: 'manual' } })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['profile'] }),
+        qc.invalidateQueries({ queryKey: nowPlayingQuery.queryKey }),
+      ])
+      toast.success(`Enjoy ${r.title}.`)
+    } catch (e) {
+      toast.error(`Couldn't log the play: ${(e as Error).message}`)
+    }
+  }
+
+  const practice = release
+    ? profile.records.find((r) => r.releaseId === release)
+    : undefined
+  if (practice)
+    return (
+      <PracticeSpin
+        // A new record starts a fresh spin and a fresh clock.
+        key={practice.releaseId}
+        record={practice}
+        profile={profile}
+        onClose={() => void navigate({ search: {} })}
+        onPlayNext={(r) => void navigate({ search: { release: r.releaseId } })}
+      />
+    )
+
+  if (isPending)
+    return (
+      <main className="page-wrap flex justify-center py-24">
+        <VinylDisc look={null} spinning className="w-20" />
+      </main>
+    )
+  const record = playing
+    ? profile.records.find((r) => r.releaseId === playing.releaseId)
+    : undefined
+  if (!playing || !record)
+    return (
+      <NothingPlaying
+        profile={profile}
+        onPractice={(r) => void navigate({ search: { release: r.releaseId } })}
+      />
+    )
   return (
-    <PracticeSpin
-      // A new record starts a fresh spin and a fresh clock.
-      key={`${record.releaseId}-${started ?? ''}`}
+    <LiveSpin
+      key={playing.playId}
       record={record}
+      playing={playing}
       profile={profile}
-      startedAt={started ? Date.parse(started) : null}
-      onClose={() => open(null)}
-      onPlayNext={(r) => open(r)}
+      onClose={close}
+      onPlayNext={playNext}
     />
   )
 }
 
-// ---------- mock clock ----------
+function useNow(everyMs = 1000) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), everyMs)
+    return () => clearInterval(id)
+  }, [everyMs])
+  return now
+}
+
+function LiveSpin({
+  record,
+  playing,
+  profile,
+  onClose,
+  onPlayNext,
+}: {
+  record: CollectionRecord
+  playing: NowPlaying
+  profile: Profile
+  onClose: () => void
+  onPlayNext: (r: CollectionRecord) => void
+}) {
+  const now = useNow()
+  return (
+    <ListeningRoom
+      record={record}
+      records={profile.records}
+      plays={profile.plays}
+      startedAt={Date.parse(playing.startedAt)}
+      now={now}
+      onClose={onClose}
+      onPlayNext={onPlayNext}
+    />
+  )
+}
+
+function NothingPlaying({
+  profile,
+  onPractice,
+}: {
+  profile: Profile
+  onPractice: (r: CollectionRecord) => void
+}) {
+  return (
+    <main className="page-wrap pt-10 pb-24">
+      <p className="kicker">Listening room</p>
+      <h1 className="mt-1 font-display text-4xl font-semibold">
+        Nothing on the platter
+      </h1>
+      <p className="mt-2 max-w-xl text-muted-foreground">
+        Put a record on and log the spin; the listening room follows along with
+        it, track by track, with its liner notes to read.
+      </p>
+      <div className="mt-6 flex flex-wrap gap-2">
+        <Button
+          asChild
+          className="bg-record-1 text-record-ink hover:bg-record-1/90"
+        >
+          <Link to="/u/$username/pick" params={{ username: profile.username }}>
+            Pick a record
+          </Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link to="/u/$username" params={{ username: profile.username }}>
+            Your collection
+          </Link>
+        </Button>
+      </div>
+      {import.meta.env.DEV && (
+        <PracticePicker profile={profile} onPick={onPractice} />
+      )}
+    </main>
+  )
+}
+
+// ---------- practice spins (local dev only) ----------
 
 /** Wall-clock time that can be fast-forwarded and sped up. */
 function useMockClock() {
@@ -113,20 +241,16 @@ function useMockClock() {
 function PracticeSpin({
   record,
   profile,
-  startedAt,
   onClose,
   onPlayNext,
 }: {
   record: CollectionRecord
   profile: Profile
-  /** A real spin's start (opened from the dock); null for a practice spin. */
-  startedAt: number | null
   onClose: () => void
   onPlayNext: (r: CollectionRecord) => void
 }) {
   const clock = useMockClock()
-  const [practiceStart] = useState(() => Date.now())
-  const start = startedAt ?? practiceStart
+  const [start] = useState(() => Date.now())
   const elapsed = Math.max(0, Math.round((clock.now - start) / 1000))
 
   return (
@@ -137,11 +261,11 @@ function PracticeSpin({
         plays={profile.plays}
         startedAt={start}
         now={clock.now}
-        practice={startedAt == null}
+        practice
         onClose={onClose}
         onPlayNext={onPlayNext}
       />
-      {/* Mock-up controls, above everything including stand mode. */}
+      {/* Clock controls, above everything including stand mode. */}
       <div className="fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[80] flex justify-center px-3">
         <div className="flex flex-wrap items-center gap-1 rounded-full border border-dashed bg-background/90 px-2 py-1 font-mono text-[11px] shadow-lg backdrop-blur-md">
           <span className="px-2 text-muted-foreground">
@@ -194,18 +318,14 @@ function PracticeSpin({
   )
 }
 
-// ---------- picker ----------
-
-function Picker({
+function PracticePicker({
   profile,
   onPick,
 }: {
   profile: Profile
-  /** `startedAt` when picking the record that's really spinning: follow that spin. */
-  onPick: (r: CollectionRecord, startedAt?: string) => void
+  onPick: (r: CollectionRecord) => void
 }) {
   const [q, setQ] = useState('')
-  const { data: playing } = useQuery(nowPlayingQuery)
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase()
     return profile.records
@@ -215,45 +335,33 @@ function Picker({
           r.title.toLowerCase().includes(needle) ||
           r.artist.toLowerCase().includes(needle),
       )
-      .sort(
-        (a, b) =>
-          Number(b.releaseId === playing?.releaseId) -
-            Number(a.releaseId === playing?.releaseId) ||
-          (b.lastPlayedAt ?? '').localeCompare(a.lastPlayedAt ?? ''),
+      .sort((a, b) =>
+        (b.lastPlayedAt ?? '').localeCompare(a.lastPlayedAt ?? ''),
       )
-  }, [profile.records, q, playing?.releaseId])
+  }, [profile.records, q])
 
   return (
-    <main className="page-wrap pt-10 pb-24">
-      <p className="kicker">Mock-up · local only</p>
-      <h1 className="mt-1 font-display text-4xl font-semibold">
-        Listening room
-      </h1>
-      <p className="mt-2 max-w-xl text-muted-foreground">
-        Pick a record for a practice spin. Nothing is logged: your plays and
-        stats stay exactly as they are. Use the mock clock at the bottom to
-        fast-forward through sides.
+    <section className="mt-12 border-t border-dashed pt-8">
+      <p className="kicker">Local only</p>
+      <h2 className="mt-1 font-display text-2xl font-semibold">
+        Practice spin
+      </h2>
+      <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+        Nothing is logged: your plays and stats stay as they are. A mock clock
+        at the bottom fast-forwards through the sides.
       </p>
       <Input
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="Search your collection"
-        className="mt-6 max-w-sm"
-        autoFocus
+        className="mt-4 max-w-sm"
       />
       <ul className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
         {list.map((r) => (
           <li key={r.instanceId}>
             <button
               type="button"
-              onClick={() =>
-                onPick(
-                  r,
-                  r.releaseId === playing?.releaseId
-                    ? playing.startedAt
-                    : undefined,
-                )
-              }
+              onClick={() => onPick(r)}
               className="group w-full text-left"
             >
               <div className="sleeve-shadow relative aspect-square overflow-hidden rounded-[3px] bg-muted">
@@ -271,11 +379,6 @@ function Picker({
                     className="size-full p-3"
                   />
                 )}
-                {r.releaseId === playing?.releaseId && (
-                  <span className="absolute top-1.5 left-1.5 rounded-full bg-record-1 px-2 py-0.5 text-[10px] font-medium text-record-ink">
-                    spinning now
-                  </span>
-                )}
               </div>
               <p className="mt-1.5 truncate text-sm font-medium">{r.title}</p>
               <p className="truncate text-xs text-muted-foreground">
@@ -285,6 +388,6 @@ function Picker({
           </li>
         ))}
       </ul>
-    </main>
+    </section>
   )
 }

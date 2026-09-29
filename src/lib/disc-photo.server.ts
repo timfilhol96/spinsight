@@ -121,6 +121,8 @@ export async function sampleArtworkColors(
     throw new Error('Not an artwork URL.')
   const res = await fetch(url, { headers: { 'User-Agent': 'Spinsight/0.1' } })
   if (!res.ok) throw new Error(`Couldn't fetch the artwork (${res.status}).`)
+  if (Number(res.headers.get('content-length') ?? 0) > 8_000_000)
+    throw new Error('Artwork too large.')
   const N = 96
   const { data } = await sharp(Buffer.from(await res.arrayBuffer()))
     .resize(N, N, { fit: 'fill' })

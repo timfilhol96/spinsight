@@ -52,8 +52,8 @@ function applyTopClaim() {
 /**
  * While mounted with a coloured record, retints the app (accent, page glow)
  * to that pressing. Black and picture discs take their colours from
- * `artworkUrl` instead (local dev only for now: the cover is sampled on
- * demand), and make no claim if the cover is black and white too. The
+ * `artworkUrl` instead (sampled on the server on demand), and make no claim
+ * if the cover is black and white too. The
  * @property registrations in styles.css make changes fade rather than snap.
  */
 export function useRecordTheme(
@@ -65,7 +65,7 @@ export function useRecordTheme(
   const palette = useQuery({
     queryKey: ['artwork-palette', artworkUrl],
     queryFn: () => getArtworkPalette({ data: { url: artworkUrl! } }),
-    enabled: !fromVinyl && !!artworkUrl && import.meta.env.DEV,
+    enabled: !fromVinyl && !!artworkUrl,
     staleTime: Infinity,
     retry: false,
   })

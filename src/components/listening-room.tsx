@@ -46,7 +46,7 @@ type Props = {
   plays: Play[]
   /** When the needle dropped (ms). */
   startedAt: number
-  /** The current time (ms). A prop so a mock-up can fast-forward it. */
+  /** The current time (ms). A prop so practice spins can fast-forward it. */
   now: number
   /** Shown as a badge: this spin isn't logged anywhere. */
   practice?: boolean

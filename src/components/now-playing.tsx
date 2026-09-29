@@ -187,22 +187,15 @@ function Dock({
       </RecordLink>
 
       <div className="flex shrink-0 flex-col gap-1">
-        {/* Listening room mock-up: local dev only for now. */}
-        {import.meta.env.DEV && (
-          <Button size="icon-sm" variant="ghost" asChild>
-            <Link
-              to="/dev/listening"
-              search={{
-                release: playing.releaseId,
-                started: playing.startedAt,
-              }}
-              aria-label="Open the listening room"
-              title="Listening room (mock-up)"
-            >
-              <BookOpen />
-            </Link>
-          </Button>
-        )}
+        <Button size="icon-sm" variant="ghost" asChild>
+          <Link
+            to="/listening"
+            aria-label="Open the listening room"
+            title="Listening room"
+          >
+            <BookOpen />
+          </Link>
+        </Button>
         <Button
           size="icon-sm"
           variant="ghost"

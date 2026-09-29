@@ -10,7 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as DevListeningRouteImport } from './routes/dev.listening'
+import { Route as ListeningRouteImport } from './routes/listening'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
 import { Route as ApiCronSyncRouteImport } from './routes/api/cron/sync'
@@ -26,9 +26,9 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DevListeningRoute = DevListeningRouteImport.update({
-  id: '/dev/listening',
-  path: '/dev/listening',
+const ListeningRoute = ListeningRouteImport.update({
+  id: '/listening',
+  path: '/listening',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UUsernameRoute = UUsernameRouteImport.update({
@@ -79,7 +79,7 @@ const ApiAuthDiscogsStartRoute = ApiAuthDiscogsStartRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/dev/listening': typeof DevListeningRoute
+  '/listening': typeof ListeningRoute
   '/u/$username': typeof UUsernameRouteWithChildren
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/cron/sync': typeof ApiCronSyncRoute
@@ -92,7 +92,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/dev/listening': typeof DevListeningRoute
+  '/listening': typeof ListeningRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/cron/sync': typeof ApiCronSyncRoute
   '/u/$username/insights': typeof UUsernameInsightsRoute
@@ -105,7 +105,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/dev/listening': typeof DevListeningRoute
+  '/listening': typeof ListeningRoute
   '/u/$username': typeof UUsernameRouteWithChildren
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/cron/sync': typeof ApiCronSyncRoute
@@ -120,7 +120,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/dev/listening'
+    | '/listening'
     | '/u/$username'
     | '/api/auth/logout'
     | '/api/cron/sync'
@@ -133,7 +133,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/dev/listening'
+    | '/listening'
     | '/api/auth/logout'
     | '/api/cron/sync'
     | '/u/$username/insights'
@@ -145,7 +145,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/dev/listening'
+    | '/listening'
     | '/u/$username'
     | '/api/auth/logout'
     | '/api/cron/sync'
@@ -159,7 +159,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DevListeningRoute: typeof DevListeningRoute
+  ListeningRoute: typeof ListeningRoute
   UUsernameRoute: typeof UUsernameRouteWithChildren
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
   ApiCronSyncRoute: typeof ApiCronSyncRoute
@@ -176,11 +176,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/dev/listening': {
-      id: '/dev/listening'
-      path: '/dev/listening'
-      fullPath: '/dev/listening'
-      preLoaderRoute: typeof DevListeningRouteImport
+    '/listening': {
+      id: '/listening'
+      path: '/listening'
+      fullPath: '/listening'
+      preLoaderRoute: typeof ListeningRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/u/$username': {
@@ -269,7 +269,7 @@ const UUsernameRouteWithChildren = UUsernameRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DevListeningRoute: DevListeningRoute,
+  ListeningRoute: ListeningRoute,
   UUsernameRoute: UUsernameRouteWithChildren,
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
   ApiCronSyncRoute: ApiCronSyncRoute,
