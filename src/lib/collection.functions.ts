@@ -117,12 +117,22 @@ export const getProfile = createServerFn({ method: 'GET' })
       .eq('user_id', owner.id)
       .order('played_at', { ascending: false })
       .limit(2000)
-    const plays = (playRows ?? []).map((p) => ({
-      id: p.id as string,
-      releaseId: Number(p.release_id),
-      playedAt: p.played_at as string,
-      source: p.source as 'manual' | 'picker',
-    }))
+    // Only plays of records still in the collection count. Plays of a pressing
+    // that was swapped out on Discogs stay in the table (they come back if the
+    // pressing does) but are left out of every stat.
+    const owned = new Set(
+      (items ?? []).map((it) =>
+        Number((it.release as unknown as ReleaseRow).id),
+      ),
+    )
+    const plays = (playRows ?? [])
+      .map((p) => ({
+        id: p.id as string,
+        releaseId: Number(p.release_id),
+        playedAt: p.played_at as string,
+        source: p.source as 'manual' | 'picker',
+      }))
+      .filter((p) => owned.has(p.releaseId))
     const playStats = new Map<number, { count: number; last: string }>()
     for (const p of plays) {
       const cur = playStats.get(p.releaseId)
