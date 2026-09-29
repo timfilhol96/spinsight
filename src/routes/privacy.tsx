@@ -33,10 +33,10 @@ function PrivacyPage() {
         never sent to your browser.
       </p>
       <p>
-        <strong>From Discogs, when you sync:</strong> the records in your
-        collection (with the folder, your rating and the date you added each
-        one), your wantlist, and the collection value estimate Discogs shows
-        you.
+        <strong>From Discogs, when you sync</strong> (and once a day
+        automatically): the records in your collection (with the folder, your
+        rating and the date you added each one), your wantlist, and the
+        collection value estimate Discogs shows you.
       </p>
       <p>
         <strong>Things you do in Spinsight:</strong> records you mark as playing
