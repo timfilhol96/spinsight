@@ -29,18 +29,22 @@ export type ArtworkResult = {
 
 /** Loose-but-safe comparison key: case, accents, punctuation and edition noise removed. */
 export function matchKey(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/\p{M}/gu, '')
-    .replace(/&|\+/g, ' and ')
-    .replace(/\s*[([].*?[)\]]\s*/g, ' ') // "(2022 Remaster)", "[Deluxe]"
-    .replace(
-      /\s+-\s+(ep|single|remaster(ed)?|deluxe.*|\d+(th)? (year )?anniversary.*)$/g,
-      '',
-    )
-    .replace(/\b(the|a|an)\b/g, '')
-    .replace(/[^a-z0-9]/g, '')
+  return (
+    s
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/\p{M}/gu, '')
+      .replace(/&|\+/g, ' and ')
+      .replace(/\s*[([].*?[)\]]\s*/g, ' ') // "(2022 Remaster)", "[Deluxe]"
+      .replace(
+        /\s+-\s+(ep|single|remaster(ed)?|deluxe.*|\d+(th)? (year )?anniversary.*)$/g,
+        '',
+      )
+      .replace(/\b(the|a|an)\b/g, '')
+      // Streaming services often append the format with no dash: "Opium EP".
+      .replace(/(\S)\s+(ep|single)$/g, '$1')
+      .replace(/[^a-z0-9]/g, '')
+  )
 }
 
 function sameArtist(want: string, got: string) {
@@ -182,24 +186,19 @@ export async function findArtwork(
   }
 }
 
-/**
- * Total length of a streaming album in seconds, used when Discogs has no
- * track times. If the vinyl's track count is known, only that many tracks are
- * summed, so digital bonus tracks don't inflate it. Null if unavailable.
- */
-export async function albumDurationSec(
+/** Track lengths of a streaming album in seconds, in album order. */
+export async function albumTrackLengths(
   art: Pick<Artwork, 'id' | 'source'>,
-  vinylTrackCount?: number,
-): Promise<number | null> {
+): Promise<number[]> {
   let lengthsMs: number[] = []
   if (art.source === 'spotify') {
     const token = await spotifyAppToken()
-    if (!token) return null
+    if (!token) return []
     const res = await fetch(
       `https://api.spotify.com/v1/albums/${encodeURIComponent(art.id)}/tracks?limit=50`,
       { headers: { Authorization: `Bearer ${token}` } },
     )
-    if (!res.ok) return null
+    if (!res.ok) return []
     const data = (await res.json()) as {
       items?: Array<{ duration_ms?: number }>
     }
@@ -208,7 +207,7 @@ export async function albumDurationSec(
     const res = await fetch(
       `https://itunes.apple.com/lookup?id=${encodeURIComponent(art.id)}&entity=song`,
     )
-    if (!res.ok) return null
+    if (!res.ok) return []
     const data = (await res.json()) as {
       results?: Array<{
         wrapperType: string
@@ -226,11 +225,24 @@ export async function albumDurationSec(
       )
       .map((t) => t.trackTimeMillis ?? 0)
   }
-  if (!lengthsMs.length) return null
+  return lengthsMs.map((ms) => Math.round(ms / 1000))
+}
+
+/**
+ * Total length of a streaming album in seconds, used when Discogs has no
+ * track times. If the vinyl's track count is known, only that many tracks are
+ * summed, so digital bonus tracks don't inflate it. Null if unavailable.
+ */
+export async function albumDurationSec(
+  art: Pick<Artwork, 'id' | 'source'>,
+  vinylTrackCount?: number,
+): Promise<number | null> {
+  const lengths = await albumTrackLengths(art)
+  if (!lengths.length) return null
   const counted =
-    vinylTrackCount && lengthsMs.length >= vinylTrackCount
-      ? lengthsMs.slice(0, vinylTrackCount)
-      : lengthsMs
-  const total = Math.round(counted.reduce((a, b) => a + b, 0) / 1000)
+    vinylTrackCount && lengths.length >= vinylTrackCount
+      ? lengths.slice(0, vinylTrackCount)
+      : lengths
+  const total = counted.reduce((a, b) => a + b, 0)
   return total > 0 ? total : null
 }
