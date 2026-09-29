@@ -63,6 +63,8 @@ export const Route = createFileRoute('/api/auth/discogs/callback')({
             .single()
           if (error) throw error
 
+          await linkFriends(user, existing ? undefined : pending.invitedBy)
+
           await session.update({ userId: user.id, oauth: undefined })
           // New users land on their collection, which kicks off the first sync.
           const home = `/u/${encodeURIComponent(user.discogs_username)}`
@@ -78,3 +80,31 @@ export const Route = createFileRoute('/api/auth/discogs/callback')({
     },
   },
 })
+
+/**
+ * People who followed this username before it was on Spinsight now follow
+ * the account; someone joining from an invite link follows whoever sent it.
+ * Never blocks signing in.
+ */
+async function linkFriends(
+  user: { id: string; discogs_username: string },
+  invitedBy: string | undefined,
+) {
+  try {
+    const { claimPendingFollows, findUser } =
+      await import('#/lib/friends.server')
+    const { db } = await import('#/lib/supabase.server')
+    await claimPendingFollows(user)
+    const inviter = invitedBy ? await findUser(invitedBy) : null
+    if (inviter && inviter.id !== user.id) {
+      // Brand-new account, so there's nothing to clash with.
+      await db().from('follows').insert({
+        follower_id: user.id,
+        followee_username: inviter.discogs_username,
+        followee_id: inviter.id,
+      })
+    }
+  } catch (e) {
+    console.warn('[auth] linking friends failed', e)
+  }
+}

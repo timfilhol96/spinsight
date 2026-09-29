@@ -1,10 +1,10 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { BarChart3, CalendarHeart, Library, Shuffle } from 'lucide-react'
+import { BarChart3, CalendarHeart, Library, Shuffle, Users } from 'lucide-react'
 import { viewerQuery } from '#/lib/queries'
 
-// Phone-only tab bar for your own collection, like a native app. The desktop
-// header nav covers the same links.
+// Phone-only tab bar for your own collection and friends, like a native app.
+// The desktop header nav covers the same links.
 const TABS = [
   { to: '/u/$username', label: 'Collection', icon: Library, exact: true },
   {
@@ -14,6 +14,7 @@ const TABS = [
     exact: false,
   },
   { to: '/u/$username/pick', label: 'Pick', icon: Shuffle, exact: false },
+  { to: '/friends', label: 'Friends', icon: Users, exact: false },
   {
     to: '/u/$username/wrapped',
     label: 'Year',
@@ -30,7 +31,7 @@ export function MobileNav() {
       aria-label="Main"
       className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md sm:hidden"
     >
-      <ul className="grid grid-cols-4">
+      <ul className="grid grid-cols-5">
         {TABS.map(({ to, label, icon: Icon, exact }) => (
           <li key={to}>
             <Link

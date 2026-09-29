@@ -14,16 +14,16 @@ TanStack Query · Supabase (Postgres) · Vercel.
 1. **Node 22+.** With Homebrew: `brew install node@22`, then add it to your PATH
    (`echo 'export PATH="/opt/homebrew/opt/node@22/bin:$PATH"' >> ~/.zshrc`).
 2. `npm install`
-3. **Supabase:** create a project, open *SQL Editor*, paste
+3. **Supabase:** create a project, open _SQL Editor_, paste
    [`supabase/schema.sql`](supabase/schema.sql) and run it.
    Then run each file in [`supabase/migrations/`](supabase/migrations/) in
    order (existing projects only need the migrations they haven't run yet).
 4. **Discogs app:** at <https://www.discogs.com/settings/developers>, click
-   *Create an application*. Set the callback URL to
+   _Create an application_. Set the callback URL to
    `http://localhost:3000/api/auth/discogs/callback`. This gives a consumer
    key and secret (your personal access token isn't needed).
 5. Copy `.env.example` to `.env` and fill it in.
-6. `npm run dev` → <http://localhost:3000>, then *Sign in with Discogs*.
+6. `npm run dev` → <http://localhost:3000>, then _Sign in with Discogs_.
 
 ## How data flows
 
@@ -51,6 +51,14 @@ TanStack Query · Supabase (Postgres) · Vercel.
 - **Now playing** (`src/components/now-playing.tsx`): logging a spin docks the
   record on every page and tints the app until "Done" or its runtime ends.
   Runtimes come from Discogs track times, else the streaming album's.
+- **Friends** (`src/lib/friends*.ts`, `src/routes/friends.*`): one-way
+  follows by Discogs username. Usernames not on Spinsight yet stay pending
+  until that person signs in (invite links make them follow you back). The
+  Friends tab polls what friends are spinning, with emoji reactions, "Spin it
+  too", a weekly leaderboard, recent additions and wantlist matches (the
+  wantlist is mirrored on every sync). The compare pages (taste match, crate
+  overlap, a joint year) run in the browser on both cached profiles. Anyone
+  can keep their spins private while their collection stays public.
 - **Disc photos** (`src/components/disc-photo-editor.tsx`): owners can crop a
   Discogs photo of the vinyl to use as the disc; colours are sampled server-side
   with sharp (`src/lib/disc-photo.server.ts`).

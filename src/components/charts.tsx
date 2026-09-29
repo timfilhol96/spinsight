@@ -336,3 +336,95 @@ export const rankedTable = (
     total ? `${Math.round((i.count / total) * 100)}%` : '—',
   ]),
 })
+
+export type Paired = { name: string; mine: number; theirs: number }
+
+/** "You" and "them" swatches, above every two-person chart. */
+export function PairLegend({ them }: { them: string }) {
+  return (
+    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+      <span className="flex items-center gap-1.5">
+        <span className="size-2.5 rounded-full bg-primary" aria-hidden /> You
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="size-2.5 rounded-full bg-friend" aria-hidden /> {them}
+      </span>
+    </div>
+  )
+}
+
+/**
+ * You vs. them per category, as a share of each collection (so a small and a
+ * large collection compare fairly). Two thin bars per row, values in text.
+ */
+export function PairedBars({
+  items,
+  mineTotal,
+  theirsTotal,
+  them,
+}: {
+  items: Paired[]
+  mineTotal: number
+  theirsTotal: number
+  them: string
+}) {
+  if (!items.length)
+    return <p className="text-sm text-muted-foreground">Nothing to show yet.</p>
+  const share = (n: number, total: number) => (total ? n / total : 0)
+  const max = Math.max(
+    ...items.flatMap((i) => [
+      share(i.mine, mineTotal),
+      share(i.theirs, theirsTotal),
+    ]),
+  )
+  const pct = (n: number, total: number) =>
+    `${Math.round(share(n, total) * 100)}%`
+  const bar = (n: number, total: number, color: string) => (
+    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+      <div
+        className={cn(
+          'h-full rounded-full transition-[width] duration-500',
+          color,
+        )}
+        style={{
+          width: `${n ? Math.max(2, (share(n, total) / (max || 1)) * 100) : 0}%`,
+        }}
+      />
+    </div>
+  )
+  return (
+    <div>
+      <PairLegend them={them} />
+      <ol className="mt-4 space-y-3">
+        {items.map((item) => (
+          <li
+            key={item.name}
+            title={`${item.name}: you ${plural(item.mine, 'record')} (${pct(item.mine, mineTotal)}), ${them} ${plural(item.theirs, 'record')} (${pct(item.theirs, theirsTotal)})`}
+          >
+            <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
+              <span className="truncate">{item.name}</span>
+              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                {pct(item.mine, mineTotal)}
+                <span className="mx-1 opacity-50">·</span>
+                {pct(item.theirs, theirsTotal)}
+              </span>
+            </div>
+            <div className="space-y-0.5">
+              {bar(item.mine, mineTotal, 'bg-primary')}
+              {bar(item.theirs, theirsTotal, 'bg-friend')}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
+export const pairedTable = (
+  items: Paired[],
+  first: string,
+  them: string,
+): TableData => ({
+  columns: [first, 'You', them],
+  rows: items.map((i) => [i.name, i.mine, i.theirs]),
+})

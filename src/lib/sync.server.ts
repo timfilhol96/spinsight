@@ -8,6 +8,7 @@ import type {
   DiscogsCollectionValue,
   DiscogsMaster,
   DiscogsRelease,
+  DiscogsWantsPage,
   OAuthToken,
 } from '#/lib/discogs.server'
 import { albumDurationSec, findArtwork } from '#/lib/artwork.server'
@@ -137,6 +138,14 @@ export async function syncCollection(
       console.warn('[sync] collection value unavailable', (e as Error).message)
     }
 
+    // The wantlist powers "friends who have your wants". Not worth failing the
+    // sync over (and the table only exists after migration 006).
+    try {
+      await syncWantlist(user)
+    } catch (e) {
+      console.warn('[sync] wantlist unavailable', (e as Error).message)
+    }
+
     await supabase
       .from('users')
       .update({
@@ -171,6 +180,55 @@ export async function syncCollection(
         .eq('id', run.id)
     }
     throw e
+  }
+}
+
+/** Mirrors the Discogs wantlist: one request per 100 wants. */
+async function syncWantlist(user: UserRow) {
+  const supabase = db()
+  const username = encodeURIComponent(user.discogs_username)
+  const rows = new Map<number, Record<string, unknown>>()
+  for (let page = 1, pages = 1; page <= pages; page++) {
+    const data = await discogsGet<DiscogsWantsPage>(
+      `/users/${username}/wants?per_page=100&page=${page}`,
+      auth(user),
+    )
+    pages = data.pagination.pages
+    for (const w of data.wants) {
+      const b = w.basic_information
+      rows.set(b.id, {
+        user_id: user.id,
+        release_id: b.id,
+        master_id: b.master_id || null,
+        title: b.title,
+        artist_display: artistDisplay(b.artists),
+        year: b.year || null,
+        thumb: b.thumb || null,
+        date_added: w.date_added,
+      })
+    }
+  }
+  if (rows.size) {
+    const { error } = await supabase
+      .from('want_items')
+      .upsert([...rows.values()], { onConflict: 'user_id,release_id' })
+    if (error) throw error
+  }
+  const { data: existing, error } = await supabase
+    .from('want_items')
+    .select('release_id')
+    .eq('user_id', user.id)
+  if (error) throw error
+  const gone = (existing ?? [])
+    .map((r) => Number(r.release_id))
+    .filter((id) => !rows.has(id))
+  if (gone.length) {
+    const { error: delErr } = await supabase
+      .from('want_items')
+      .delete()
+      .eq('user_id', user.id)
+      .in('release_id', gone)
+    if (delErr) throw delErr
   }
 }
 

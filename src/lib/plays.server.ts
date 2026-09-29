@@ -1,12 +1,64 @@
 import { db } from '#/lib/supabase.server'
-import type { NowPlaying } from '#/lib/records'
+import { DEFAULT_RUNTIME_SEC } from '#/lib/records'
+import type { NowPlaying, Reaction } from '#/lib/records'
 import { parseVinylLook, withDiscPhoto } from '#/lib/vinyl-color'
 import type { DiscPhoto, DiscogsFormat } from '#/lib/vinyl-color'
 
-/** Runtime assumed when a record's length is unknown (a typical LP). */
-const DEFAULT_RUNTIME_SEC = 45 * 60
 /** Leeway after the runtime for flipping sides and the run-out groove. */
 const GRACE_SEC = 10 * 60
+
+/** When an open play stops counting as "now playing". */
+export function spinEndsAt(playedAt: string, durationSec: number | null) {
+  const runtime = durationSec ?? DEFAULT_RUNTIME_SEC
+  return new Date(playedAt).getTime() + (runtime + GRACE_SEC) * 1000
+}
+
+/** Friends' emoji on these plays, keyed by play id. Empty before migration 006. */
+export async function reactionsFor(
+  playIds: string[],
+): Promise<Map<string, Array<Reaction & { userId: string }>>> {
+  const out = new Map<string, Array<Reaction & { userId: string }>>()
+  if (!playIds.length) return out
+  const { data, error } = await db()
+    .from('play_reactions')
+    .select(
+      'play_id, user_id, emoji, created_at, user:users!inner(discogs_username, display_name)',
+    )
+    .in('play_id', playIds)
+    .order('created_at', { ascending: true })
+  if (error) return out
+  for (const r of data) {
+    const u = r.user as unknown as {
+      discogs_username: string
+      display_name: string | null
+    }
+    const list = out.get(r.play_id as string) ?? []
+    list.push({
+      userId: r.user_id as string,
+      username: u.discogs_username,
+      displayName: u.display_name,
+      emoji: r.emoji as string,
+    })
+    out.set(r.play_id as string, list)
+  }
+  return out
+}
+
+/** The friend whose spin this one joined ("Spin it too"), if any. */
+export async function alongWithFor(
+  context: unknown,
+): Promise<NowPlaying['along']> {
+  const username = (context as { along?: unknown } | null)?.along
+  if (typeof username !== 'string' || !username) return null
+  const { data } = await db()
+    .from('users')
+    .select('discogs_username, display_name')
+    .ilike('discogs_username', username.replace(/[\\%_]/g, '\\$&'))
+    .maybeSingle()
+  return data
+    ? { username: data.discogs_username, displayName: data.display_name }
+    : { username, displayName: null }
+}
 
 /**
  * The record this user is spinning right now: their latest play that hasn't
@@ -19,7 +71,7 @@ export async function nowPlayingFor(
   const { data: play } = await supabase
     .from('plays')
     .select(
-      'id, played_at, release:releases!inner(id, title, artist_display, formats, cover_image, thumb, artwork_url, artwork_thumb, duration_sec)',
+      'id, played_at, context, release:releases!inner(id, title, artist_display, formats, cover_image, thumb, artwork_url, artwork_thumb, duration_sec)',
     )
     .eq('user_id', userId)
     .is('ended_at', null)
@@ -40,18 +92,21 @@ export async function nowPlayingFor(
     duration_sec: number | null
   }
   const startedAt = new Date(play.played_at as string).getTime()
-  const runtime = rel.duration_sec ?? DEFAULT_RUNTIME_SEC
-  const endsAt = startedAt + (runtime + GRACE_SEC) * 1000
+  const endsAt = spinEndsAt(play.played_at as string, rel.duration_sec)
   if (Date.now() > endsAt) return null
 
   // Respect a hand-picked cover for this user's copy.
-  const { data: item } = await supabase
-    .from('collection_items')
-    .select('instance_id, cover_url, cover_thumb, disc_photo, disc_colors')
-    .eq('user_id', userId)
-    .eq('release_id', rel.id)
-    .limit(1)
-    .maybeSingle()
+  const [{ data: item }, reactions, along] = await Promise.all([
+    supabase
+      .from('collection_items')
+      .select('instance_id, cover_url, cover_thumb, disc_photo, disc_colors')
+      .eq('user_id', userId)
+      .eq('release_id', rel.id)
+      .limit(1)
+      .maybeSingle(),
+    reactionsFor([play.id as string]),
+    alongWithFor(play.context),
+  ])
 
   return {
     playId: play.id as string,
@@ -69,6 +124,10 @@ export async function nowPlayingFor(
     durationSec: rel.duration_sec,
     startedAt: new Date(startedAt).toISOString(),
     endsAt: new Date(endsAt).toISOString(),
+    along,
+    reactions: (reactions.get(play.id as string) ?? []).map(
+      ({ userId: _, ...r }) => r,
+    ),
   }
 }
 

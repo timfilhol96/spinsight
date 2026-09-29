@@ -23,7 +23,7 @@ export function PlayButton({
 }: {
   record: CollectionRecord
   source?: 'manual' | 'picker'
-  context?: PickAnswers & { mode?: 'guided' | 'random' }
+  context?: PickAnswers & { mode?: 'guided' | 'random' | 'friends' }
   onLogged?: () => void
   className?: string
   size?: 'default' | 'lg'

@@ -6,7 +6,13 @@ import type { UserRow } from '#/lib/supabase.server'
 type SessionData = {
   userId?: string
   /** Temporary OAuth request token, held between /start and /callback. */
-  oauth?: { token: string; secret: string; returnTo: string }
+  oauth?: {
+    token: string
+    secret: string
+    returnTo: string
+    /** Username from an invite link: new users follow them straight away. */
+    invitedBy?: string
+  }
 }
 
 // Encrypted, httpOnly cookie. Discogs is the only way in, so there is no

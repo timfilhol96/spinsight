@@ -5,16 +5,17 @@ import {
   notFound,
   useNavigate,
 } from '@tanstack/react-router'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
-import { Eye, EyeOff, RefreshCw } from 'lucide-react'
+import { Eye, EyeOff, GitCompareArrows, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
+import { FollowButton } from '#/components/follow-button'
 import { VinylDisc } from '#/components/vinyl-disc'
 import { Avatar, AvatarFallback, AvatarImage } from '#/components/ui/avatar'
 import { Button } from '#/components/ui/button'
 import { Progress } from '#/components/ui/progress'
 import { setProfileVisibility } from '#/lib/collection.functions'
-import { profileQuery } from '#/lib/queries'
+import { profileQuery, viewerQuery } from '#/lib/queries'
 import type { Profile } from '#/lib/records'
 import { useCollectionSync } from '#/lib/use-collection-sync'
 import { useProfile } from '#/lib/use-profile'
@@ -70,6 +71,7 @@ function ProfileLayout() {
   const navigate = useNavigate()
   const profile = useProfile()
   const sync = useCollectionSync(username)
+  const { data: viewer } = useQuery(viewerQuery)
 
   // First visit after signing up: pull the collection straight away.
   const welcomed = useRef(false)
@@ -131,6 +133,20 @@ function ProfileLayout() {
             )}
           </div>
         </div>
+
+        {!profile.isOwner && viewer && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link
+                to="/friends/$username"
+                params={{ username: profile.username }}
+              >
+                <GitCompareArrows /> Compare
+              </Link>
+            </Button>
+            <FollowButton username={profile.username} />
+          </div>
+        )}
 
         {profile.isOwner && (
           <div className="flex flex-wrap items-center gap-2">

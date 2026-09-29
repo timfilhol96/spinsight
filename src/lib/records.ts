@@ -9,6 +9,9 @@ import type { VinylLook } from '#/lib/vinyl-color'
  */
 export const DETAILS_VERSION = 4
 
+/** Runtime assumed when a record's length is unknown (a typical LP). */
+export const DEFAULT_RUNTIME_SEC = 45 * 60
+
 export type Play = {
   id: string
   releaseId: number
@@ -123,4 +126,14 @@ export type NowPlaying = {
   startedAt: string
   /** After this it's no longer "now playing" (runtime + grace). */
   endsAt: string
+  /** Started with "Spin it too" from this friend's spin. */
+  along: { username: string; displayName: string | null } | null
+  /** Friends' emoji on this spin, oldest first. */
+  reactions: Reaction[]
+}
+
+export type Reaction = {
+  username: string
+  displayName: string | null
+  emoji: string
 }

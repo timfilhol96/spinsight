@@ -19,12 +19,17 @@ export const Route = createFileRoute('/api/auth/discogs/start')({
             ? returnTo
             : ''
 
+        const { USERNAME_RE } = await import('#/lib/friends')
+        const invite = url.searchParams.get('invite')
+        const invitedBy =
+          invite && USERNAME_RE.test(invite) ? invite : undefined
+
         const requestToken = await getRequestToken(
           `${origin}/api/auth/discogs/callback`,
         )
         const session = await appSession()
         await session.update({
-          oauth: { ...requestToken, returnTo: safeReturnTo },
+          oauth: { ...requestToken, returnTo: safeReturnTo, invitedBy },
         })
 
         return new Response(null, {

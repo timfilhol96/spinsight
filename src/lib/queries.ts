@@ -4,6 +4,7 @@ import {
   getProfile,
   getViewer,
 } from '#/lib/collection.functions'
+import { getFriendsActivity, getWantlist } from '#/lib/friends.functions'
 
 export const viewerQuery = queryOptions({
   queryKey: ['viewer'],
@@ -25,3 +26,17 @@ export const nowPlayingQuery = queryOptions({
   staleTime: 30_000,
   refetchInterval: 60_000,
 })
+
+/** The Friends tab: who you follow, what they're spinning, the leaderboard. */
+export const friendsQuery = queryOptions({
+  queryKey: ['friends'],
+  queryFn: () => getFriendsActivity(),
+  staleTime: 30_000,
+})
+
+export const wantlistQuery = (username: string) =>
+  queryOptions({
+    queryKey: ['wantlist', username.toLowerCase()],
+    queryFn: () => getWantlist({ data: { username } }),
+    staleTime: 5 * 60_000,
+  })

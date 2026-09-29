@@ -25,6 +25,8 @@ export type UserRow = {
   oauth_token: string
   oauth_token_secret: string
   is_public: boolean
+  /** Friends can see what you're spinning. Missing before migration 006. */
+  share_listening?: boolean
   preferred_currency: string | null
   collection_value: CollectionValue | null
   last_synced_at: string | null

@@ -19,6 +19,7 @@ create table if not exists public.users (
   oauth_token_secret text not null,
   is_public boolean not null default true,
   preferred_currency text,                -- ISO code for displaying values/prices
+  share_listening boolean not null default true, -- friends see what you're spinning
   collection_value jsonb,
   last_synced_at timestamptz,
   created_at timestamptz not null default now()
@@ -105,6 +106,43 @@ create table if not exists public.plays (
 );
 create index if not exists plays_user_played_idx on public.plays (user_id, played_at desc);
 
+-- One-way follows. followee_id is null while the username isn't on Spinsight
+-- yet; it's filled in when they first sign in.
+create table if not exists public.follows (
+  follower_id uuid not null references public.users (id) on delete cascade,
+  followee_username text not null,
+  followee_id uuid references public.users (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists follows_pair_idx
+  on public.follows (follower_id, lower(followee_username));
+create index if not exists follows_followee_idx on public.follows (followee_id);
+create index if not exists follows_pending_idx
+  on public.follows (lower(followee_username)) where followee_id is null;
+
+-- A friend's emoji on a spin (one per person per play).
+create table if not exists public.play_reactions (
+  play_id uuid not null references public.plays (id) on delete cascade,
+  user_id uuid not null references public.users (id) on delete cascade,
+  emoji text not null,
+  created_at timestamptz not null default now(),
+  primary key (play_id, user_id)
+);
+
+-- Mirror of each user's Discogs wantlist, refreshed with every sync.
+create table if not exists public.want_items (
+  user_id uuid not null references public.users (id) on delete cascade,
+  release_id bigint not null,
+  master_id bigint,
+  title text not null,
+  artist_display text not null,
+  year int,
+  thumb text,
+  date_added timestamptz,
+  primary key (user_id, release_id)
+);
+create index if not exists want_items_master_idx on public.want_items (master_id);
+
 create table if not exists public.sync_runs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users (id) on delete cascade,
@@ -125,3 +163,6 @@ alter table public.artists enable row level security;
 alter table public.collection_items enable row level security;
 alter table public.plays enable row level security;
 alter table public.sync_runs enable row level security;
+alter table public.follows enable row level security;
+alter table public.play_reactions enable row level security;
+alter table public.want_items enable row level security;

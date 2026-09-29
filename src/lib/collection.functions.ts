@@ -77,9 +77,9 @@ export const getProfile = createServerFn({ method: 'GET' })
 
     const { data: owner } = await supabase
       .from('users')
-      .select(
-        'id, discogs_username, display_name, avatar_url, is_public, last_synced_at, collection_value, preferred_currency',
-      )
+      // '*' rather than a column list so share_listening (migration 006) is
+      // optional. Tokens stay on the server: only the fields below are returned.
+      .select('*')
       // Case-insensitive exact match; escape LIKE wildcards (usernames can contain "_").
       .ilike('discogs_username', data.username.replace(/[\\%_]/g, '\\$&'))
       .maybeSingle()
@@ -231,9 +231,11 @@ export const getProfile = createServerFn({ method: 'GET' })
           : null,
       currency: viewer?.preferred_currency ?? owner.preferred_currency ?? null,
       rates: await usdRates(),
-      nowPlaying: await (
-        await import('#/lib/plays.server')
-      ).nowPlayingFor(owner.id),
+      // Listening can be kept private while the collection is public.
+      nowPlaying:
+        isOwner || owner.share_listening !== false
+          ? await (await import('#/lib/plays.server')).nowPlayingFor(owner.id)
+          : null,
       plays,
       records,
     }
@@ -298,7 +300,9 @@ const PlayContext = z
     family: z.string().max(30).optional(),
     length: z.string().max(20).optional(),
     time: z.string().max(20).optional(),
-    mode: z.enum(['guided', 'random']).optional(),
+    mode: z.enum(['guided', 'random', 'friends']).optional(),
+    /** Username of the friend whose spin this joins ("Spin it too"). */
+    along: z.string().min(1).max(100).optional(),
   })
   .strict()
 

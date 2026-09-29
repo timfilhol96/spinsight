@@ -1,8 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
 import { useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
   Dices,
+  Users,
   LocateFixed,
   RotateCcw,
   Shuffle,
@@ -32,6 +34,8 @@ import type {
   PlayInfo,
   Weather,
 } from '#/lib/moods'
+import { albumKey, firstName, timeAgo } from '#/lib/friends'
+import { friendsQuery } from '#/lib/queries'
 import type { CollectionRecord } from '#/lib/records'
 import { formatDuration } from '#/lib/records'
 import { THEME_PRIORITY, useRecordTheme } from '#/lib/theme'
@@ -50,7 +54,7 @@ export const Route = createFileRoute('/u/$username/pick')({
 type Stage =
   | { kind: 'start' }
   | { kind: 'questions'; step: number }
-  | { kind: 'result'; pick: Candidate; mode: 'guided' | 'random' }
+  | { kind: 'result'; pick: Candidate; mode: 'guided' | 'random' | 'friends' }
 
 const STEPS = ['mood', 'weather', 'family', 'length'] as const
 
@@ -69,6 +73,52 @@ function PickPage() {
     return m
   }, [records])
   const families = useMemo(() => availableFamilies(records), [records])
+
+  // Records you own that friends spun in the last two weeks (any pressing).
+  const { data: activity } = useQuery({
+    ...friendsQuery,
+    enabled: profile.isOwner,
+  })
+  const friendPicks = useMemo(() => {
+    const byAlbum = new Map<string, CollectionRecord>()
+    for (const r of records)
+      if (!byAlbum.has(albumKey(r))) byAlbum.set(albumKey(r), r)
+    const out = new Map<number, Candidate>()
+    for (const s of activity?.recentSpins ?? []) {
+      const record =
+        records.find((r) => r.releaseId === s.releaseId) ??
+        byAlbum.get(albumKey(s))
+      if (!record) continue
+      const reason = `${firstName(s)} spun it ${timeAgo(s.playedAt)}`
+      const cur = out.get(record.instanceId)
+      if (cur) {
+        // Newest first, so later spins are older: just note who else.
+        if (!cur.reasons.some((x) => x.startsWith(firstName(s))))
+          cur.reasons.push(reason)
+      } else {
+        out.set(record.instanceId, { record, score: 1, reasons: [reason] })
+      }
+    }
+    return [...out.values()]
+  }, [records, activity])
+
+  function fromFriends() {
+    let pool = friendPicks.filter(
+      (c) => !shown.current.has(c.record.instanceId),
+    )
+    if (!pool.length) {
+      resetShown()
+      pool = friendPicks
+    }
+    const pick = pool[Math.floor(Math.random() * pool.length)]
+    if (!pick) return
+    shown.current.add(pick.record.instanceId)
+    setStage({
+      kind: 'result',
+      pick: { ...pick, reasons: pick.reasons.slice(0, 3) },
+      mode: 'friends',
+    })
+  }
 
   function surprise() {
     let record = randomPick(records, plays, shown.current)
@@ -120,6 +170,7 @@ function PickPage() {
   function again() {
     if (stage.kind !== 'result') return
     if (stage.mode === 'random') surprise()
+    else if (stage.mode === 'friends') fromFriends()
     else pickGuided(answers)
   }
 
@@ -146,6 +197,15 @@ function PickPage() {
             setAnswers({})
             setStage({ kind: 'questions', step: 0 })
           }}
+          onFriends={
+            friendPicks.length
+              ? () => {
+                  resetShown()
+                  fromFriends()
+                }
+              : undefined
+          }
+          friendCount={friendPicks.length}
           count={records.length}
         />
       )}
@@ -195,10 +255,15 @@ function PickPage() {
 function StartScreen({
   onSurprise,
   onGuided,
+  onFriends,
+  friendCount,
   count,
 }: {
   onSurprise: () => void
   onGuided: () => void
+  /** Set when friends recently spun records you own. */
+  onFriends?: () => void
+  friendCount: number
   count: number
 }) {
   return (
@@ -209,7 +274,12 @@ function StartScreen({
       <p className="mt-3 text-muted-foreground">
         {count} records to choose from.
       </p>
-      <div className="mt-10 grid gap-4 sm:grid-cols-2">
+      <div
+        className={cn(
+          'mt-10 grid gap-4',
+          onFriends ? 'sm:grid-cols-3' : 'sm:grid-cols-2',
+        )}
+      >
         <ModeCard
           icon={Sparkles}
           title="Help me choose"
@@ -223,6 +293,14 @@ function StartScreen({
           body="Any record, skipping what you spun in the last few days."
           onClick={onSurprise}
         />
+        {onFriends && (
+          <ModeCard
+            icon={Users}
+            title="Friends' picks"
+            body={`${friendCount} of your records were on a friend's turntable in the last two weeks.`}
+            onClick={onFriends}
+          />
+        )}
       </div>
     </div>
   )
@@ -480,7 +558,7 @@ function Result({
   onDetails,
 }: {
   pick: Candidate
-  mode: 'guided' | 'random'
+  mode: 'guided' | 'random' | 'friends'
   answers: PickAnswers
   canPlay: boolean
   onAgain: () => void
@@ -516,7 +594,11 @@ function Result({
 
       <div className="rise-in">
         <p className="kicker">
-          {mode === 'random' ? 'Pulled at random' : 'Tonight’s pick'}
+          {mode === 'random'
+            ? 'Pulled at random'
+            : mode === 'friends'
+              ? 'On a friend’s turntable lately'
+              : 'Tonight’s pick'}
         </p>
         <h2 className="mt-2 text-4xl leading-tight font-bold tracking-tight md:text-5xl">
           {r.title}

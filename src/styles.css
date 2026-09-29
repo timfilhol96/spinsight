@@ -58,6 +58,8 @@
   --chart-3: #5f6b3a;
   --chart-4: #2f6f73;
   --chart-5: #7a2e2e;
+  /* "Them" beside the accent's "you" on compare charts (validated pair). */
+  --friend: #1a7fb0;
   --radius: 0.75rem;
   --grain-opacity: 0.35;
 
@@ -97,6 +99,7 @@
   --chart-3: #9aa66a;
   --chart-4: #5fb0b4;
   --chart-5: #c0605a;
+  --friend: #3a9fd6;
   --grain-opacity: 0.22;
 }
 
@@ -136,6 +139,7 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-friend: var(--friend);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

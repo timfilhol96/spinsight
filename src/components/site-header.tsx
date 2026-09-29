@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { LogOut, Moon, Sun, SunMoon, User } from 'lucide-react'
+import { LogOut, Moon, Sun, SunMoon, User, Users } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '#/components/ui/avatar'
 import { Button } from '#/components/ui/button'
 import {
@@ -93,6 +93,16 @@ export function SiteHeader() {
             >
               Pick a record
             </Link>
+            <Link
+              to="/friends"
+              className="text-muted-foreground hover:text-foreground"
+              activeProps={{
+                className:
+                  'text-foreground underline decoration-record-1 decoration-2 underline-offset-8',
+              }}
+            >
+              Friends
+            </Link>
           </nav>
         )}
 
@@ -131,6 +141,11 @@ export function SiteHeader() {
                     params={{ username: viewer.username }}
                   >
                     <User /> My collection
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/friends">
+                    <Users /> Friends
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>

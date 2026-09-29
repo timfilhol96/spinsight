@@ -11,9 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ListeningRouteImport } from './routes/listening'
+import { Route as FriendsIndexRouteImport } from './routes/friends.index'
+import { Route as FriendsUsernameRouteImport } from './routes/friends.$username'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
 import { Route as ApiCronSyncRouteImport } from './routes/api/cron/sync'
+import { Route as FriendsUsernameIndexRouteImport } from './routes/friends.$username.index'
+import { Route as FriendsUsernameYearRouteImport } from './routes/friends.$username.year'
 import { Route as UUsernameIndexRouteImport } from './routes/u.$username.index'
 import { Route as UUsernameInsightsRouteImport } from './routes/u.$username.insights'
 import { Route as UUsernamePickRouteImport } from './routes/u.$username.pick'
@@ -31,6 +35,16 @@ const ListeningRoute = ListeningRouteImport.update({
   path: '/listening',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FriendsIndexRoute = FriendsIndexRouteImport.update({
+  id: '/friends/',
+  path: '/friends/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FriendsUsernameRoute = FriendsUsernameRouteImport.update({
+  id: '/friends/$username',
+  path: '/friends/$username',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UUsernameRoute = UUsernameRouteImport.update({
   id: '/u/$username',
   path: '/u/$username',
@@ -45,6 +59,16 @@ const ApiCronSyncRoute = ApiCronSyncRouteImport.update({
   id: '/api/cron/sync',
   path: '/api/cron/sync',
   getParentRoute: () => rootRouteImport,
+} as any)
+const FriendsUsernameIndexRoute = FriendsUsernameIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => FriendsUsernameRoute,
+} as any)
+const FriendsUsernameYearRoute = FriendsUsernameYearRouteImport.update({
+  id: '/year',
+  path: '/year',
+  getParentRoute: () => FriendsUsernameRoute,
 } as any)
 const UUsernameIndexRoute = UUsernameIndexRouteImport.update({
   id: '/',
@@ -80,12 +104,16 @@ const ApiAuthDiscogsStartRoute = ApiAuthDiscogsStartRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/listening': typeof ListeningRoute
+  '/friends/$username': typeof FriendsUsernameRouteWithChildren
   '/u/$username': typeof UUsernameRouteWithChildren
+  '/friends/': typeof FriendsIndexRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/cron/sync': typeof ApiCronSyncRoute
+  '/friends/$username/year': typeof FriendsUsernameYearRoute
   '/u/$username/insights': typeof UUsernameInsightsRoute
   '/u/$username/pick': typeof UUsernamePickRoute
   '/u/$username/wrapped': typeof UUsernameWrappedRoute
+  '/friends/$username/': typeof FriendsUsernameIndexRoute
   '/u/$username/': typeof UUsernameIndexRoute
   '/api/auth/discogs/callback': typeof ApiAuthDiscogsCallbackRoute
   '/api/auth/discogs/start': typeof ApiAuthDiscogsStartRoute
@@ -93,11 +121,14 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/listening': typeof ListeningRoute
+  '/friends': typeof FriendsIndexRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/cron/sync': typeof ApiCronSyncRoute
+  '/friends/$username/year': typeof FriendsUsernameYearRoute
   '/u/$username/insights': typeof UUsernameInsightsRoute
   '/u/$username/pick': typeof UUsernamePickRoute
   '/u/$username/wrapped': typeof UUsernameWrappedRoute
+  '/friends/$username': typeof FriendsUsernameIndexRoute
   '/u/$username': typeof UUsernameIndexRoute
   '/api/auth/discogs/callback': typeof ApiAuthDiscogsCallbackRoute
   '/api/auth/discogs/start': typeof ApiAuthDiscogsStartRoute
@@ -106,12 +137,16 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/listening': typeof ListeningRoute
+  '/friends/$username': typeof FriendsUsernameRouteWithChildren
   '/u/$username': typeof UUsernameRouteWithChildren
+  '/friends/': typeof FriendsIndexRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/cron/sync': typeof ApiCronSyncRoute
+  '/friends/$username/year': typeof FriendsUsernameYearRoute
   '/u/$username/insights': typeof UUsernameInsightsRoute
   '/u/$username/pick': typeof UUsernamePickRoute
   '/u/$username/wrapped': typeof UUsernameWrappedRoute
+  '/friends/$username/': typeof FriendsUsernameIndexRoute
   '/u/$username/': typeof UUsernameIndexRoute
   '/api/auth/discogs/callback': typeof ApiAuthDiscogsCallbackRoute
   '/api/auth/discogs/start': typeof ApiAuthDiscogsStartRoute
@@ -121,12 +156,16 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/listening'
+    | '/friends/$username'
     | '/u/$username'
+    | '/friends/'
     | '/api/auth/logout'
     | '/api/cron/sync'
+    | '/friends/$username/year'
     | '/u/$username/insights'
     | '/u/$username/pick'
     | '/u/$username/wrapped'
+    | '/friends/$username/'
     | '/u/$username/'
     | '/api/auth/discogs/callback'
     | '/api/auth/discogs/start'
@@ -134,11 +173,14 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/listening'
+    | '/friends'
     | '/api/auth/logout'
     | '/api/cron/sync'
+    | '/friends/$username/year'
     | '/u/$username/insights'
     | '/u/$username/pick'
     | '/u/$username/wrapped'
+    | '/friends/$username'
     | '/u/$username'
     | '/api/auth/discogs/callback'
     | '/api/auth/discogs/start'
@@ -146,12 +188,16 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/listening'
+    | '/friends/$username'
     | '/u/$username'
+    | '/friends/'
     | '/api/auth/logout'
     | '/api/cron/sync'
+    | '/friends/$username/year'
     | '/u/$username/insights'
     | '/u/$username/pick'
     | '/u/$username/wrapped'
+    | '/friends/$username/'
     | '/u/$username/'
     | '/api/auth/discogs/callback'
     | '/api/auth/discogs/start'
@@ -160,7 +206,9 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ListeningRoute: typeof ListeningRoute
+  FriendsUsernameRoute: typeof FriendsUsernameRouteWithChildren
   UUsernameRoute: typeof UUsernameRouteWithChildren
+  FriendsIndexRoute: typeof FriendsIndexRoute
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
   ApiCronSyncRoute: typeof ApiCronSyncRoute
   ApiAuthDiscogsCallbackRoute: typeof ApiAuthDiscogsCallbackRoute
@@ -183,6 +231,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ListeningRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/friends/': {
+      id: '/friends/'
+      path: '/friends'
+      fullPath: '/friends/'
+      preLoaderRoute: typeof FriendsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/friends/$username': {
+      id: '/friends/$username'
+      path: '/friends/$username'
+      fullPath: '/friends/$username'
+      preLoaderRoute: typeof FriendsUsernameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/u/$username': {
       id: '/u/$username'
       path: '/u/$username'
@@ -203,6 +265,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/cron/sync'
       preLoaderRoute: typeof ApiCronSyncRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/friends/$username/': {
+      id: '/friends/$username/'
+      path: '/'
+      fullPath: '/friends/$username/'
+      preLoaderRoute: typeof FriendsUsernameIndexRouteImport
+      parentRoute: typeof FriendsUsernameRoute
+    }
+    '/friends/$username/year': {
+      id: '/friends/$username/year'
+      path: '/year'
+      fullPath: '/friends/$username/year'
+      preLoaderRoute: typeof FriendsUsernameYearRouteImport
+      parentRoute: typeof FriendsUsernameRoute
     }
     '/u/$username/': {
       id: '/u/$username/'
@@ -249,6 +325,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface FriendsUsernameRouteChildren {
+  FriendsUsernameYearRoute: typeof FriendsUsernameYearRoute
+  FriendsUsernameIndexRoute: typeof FriendsUsernameIndexRoute
+}
+
+const FriendsUsernameRouteChildren: FriendsUsernameRouteChildren = {
+  FriendsUsernameYearRoute: FriendsUsernameYearRoute,
+  FriendsUsernameIndexRoute: FriendsUsernameIndexRoute,
+}
+
+const FriendsUsernameRouteWithChildren = FriendsUsernameRoute._addFileChildren(
+  FriendsUsernameRouteChildren,
+)
+
 interface UUsernameRouteChildren {
   UUsernameInsightsRoute: typeof UUsernameInsightsRoute
   UUsernamePickRoute: typeof UUsernamePickRoute
@@ -270,7 +360,9 @@ const UUsernameRouteWithChildren = UUsernameRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ListeningRoute: ListeningRoute,
+  FriendsUsernameRoute: FriendsUsernameRouteWithChildren,
   UUsernameRoute: UUsernameRouteWithChildren,
+  FriendsIndexRoute: FriendsIndexRoute,
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
   ApiCronSyncRoute: ApiCronSyncRoute,
   ApiAuthDiscogsCallbackRoute: ApiAuthDiscogsCallbackRoute,

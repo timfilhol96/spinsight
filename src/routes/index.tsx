@@ -1,19 +1,35 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { BarChart3, Palette, Shuffle } from 'lucide-react'
+import { BarChart3, Palette, Shuffle, Users } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { VinylDisc } from '#/components/vinyl-disc'
+import { USERNAME_RE } from '#/lib/friends'
 import { useRecordTheme } from '#/lib/theme'
 import { parseVinylLook } from '#/lib/vinyl-color'
 
-type Search = { auth?: 'cancelled' | 'error' }
+type Search = {
+  auth?: 'cancelled' | 'error'
+  /** Username from a friend's invite link. */
+  invite?: string
+}
 
 export const Route = createFileRoute('/')({
   validateSearch: (s: Record<string, unknown>): Search => ({
     auth: s.auth === 'cancelled' || s.auth === 'error' ? s.auth : undefined,
+    invite:
+      typeof s.invite === 'string' && USERNAME_RE.test(s.invite)
+        ? s.invite
+        : undefined,
   }),
-  beforeLoad: ({ context }) => {
+  beforeLoad: ({ context, search }) => {
+    // Already signed in: go straight to comparing with whoever invited you.
+    if (context.viewer && search.invite) {
+      throw redirect({
+        to: '/friends/$username',
+        params: { username: search.invite },
+      })
+    }
     if (context.viewer) {
       throw redirect({
         to: '/u/$username',
@@ -39,7 +55,10 @@ const SAMPLES = [
 }))
 
 function Landing() {
-  const { auth } = Route.useSearch()
+  const { auth, invite } = Route.useSearch()
+  const signIn = invite
+    ? `/api/auth/discogs/start?invite=${encodeURIComponent(invite)}`
+    : '/api/auth/discogs/start'
   const [active, setActive] = useState(0)
   useRecordTheme(SAMPLES[active].look)
 
@@ -61,6 +80,16 @@ function Landing() {
     <main className="page-wrap py-12 md:py-20">
       <section className="grid items-center gap-12 md:grid-cols-[1.1fr_1fr]">
         <div className="rise-in">
+          {invite && (
+            <p className="mb-6 flex items-center gap-2 rounded-xl border border-record-1/50 bg-card/80 px-4 py-3 text-sm">
+              <Users className="size-4 shrink-0 text-record-1" />
+              <span>
+                <span className="font-semibold">{invite}</span> invited you to
+                compare record collections. Sign in and you'll follow them
+                straight away.
+              </span>
+            </p>
+          )}
           <p className="kicker">For people who own too many records</p>
           <h1 className="mt-3 text-5xl leading-[1.02] font-bold tracking-tight md:text-7xl">
             Your crates,
@@ -77,14 +106,14 @@ function Landing() {
               size="lg"
               className="bg-record-1 text-record-ink hover:bg-record-1/90"
             >
-              <a href="/api/auth/discogs/start">Sign in with Discogs</a>
+              <a href={signIn}>Sign in with Discogs</a>
             </Button>
             <span className="text-sm text-muted-foreground">
               Free. Read-only access to your collection.
             </span>
           </div>
 
-          <ul className="mt-12 grid gap-4 sm:grid-cols-3">
+          <ul className="mt-12 grid gap-4 sm:grid-cols-2">
             {[
               {
                 icon: BarChart3,
@@ -95,6 +124,11 @@ function Landing() {
                 icon: Shuffle,
                 title: 'Record picker',
                 body: 'Random, or a few quick questions.',
+              },
+              {
+                icon: Users,
+                title: 'Friends',
+                body: 'See what they spin, compare crates.',
               },
               {
                 icon: Palette,

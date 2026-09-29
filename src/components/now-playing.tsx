@@ -168,6 +168,7 @@ function Dock({
           <p className="truncate text-xs text-muted-foreground">
             {playing.artist}
           </p>
+          <FriendsLine playing={playing} />
           <div className="mt-1.5 flex items-center gap-2">
             <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
               {progress != null && (
@@ -216,6 +217,38 @@ function Dock({
         </Button>
       </div>
     </section>
+  )
+}
+
+/** Friends' emoji on this spin, and whose spin it joined. */
+function FriendsLine({ playing }: { playing: NowPlaying }) {
+  const { along, reactions } = playing
+  if (!along && !reactions.length) return null
+  const names = reactions.map(
+    (r) => `${r.displayName || r.username} ${r.emoji}`,
+  )
+  return (
+    <p
+      className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] text-muted-foreground"
+      title={names.join(', ') || undefined}
+    >
+      {reactions.length > 0 && (
+        <span className="shrink-0 tracking-tight">
+          <span aria-hidden>
+            {reactions
+              .slice(-4)
+              .map((r) => r.emoji)
+              .join('')}
+          </span>
+          <span className="sr-only">Reactions: {names.join(', ')}</span>
+        </span>
+      )}
+      {along && (
+        <span className="truncate">
+          with {along.displayName?.split(' ')[0] || along.username}
+        </span>
+      )}
+    </p>
   )
 }
 

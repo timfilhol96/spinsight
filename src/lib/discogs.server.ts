@@ -169,6 +169,22 @@ export type DiscogsCollectionPage = {
   }>
 }
 
+export type DiscogsWantsPage = {
+  pagination: { page: number; pages: number; items: number }
+  wants: Array<{
+    id: number
+    date_added: string
+    basic_information: {
+      id: number
+      master_id: number
+      title: string
+      year: number
+      thumb: string
+      artists: DiscogsArtistRef[]
+    }
+  }>
+}
+
 export type DiscogsCollectionValue = {
   minimum: string
   median: string
