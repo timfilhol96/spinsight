@@ -488,7 +488,7 @@ function Result({
   onDetails: () => void
 }) {
   const r: CollectionRecord = pick.record
-  useRecordTheme(r.look, THEME_PRIORITY.focus)
+  useRecordTheme(r.look, THEME_PRIORITY.focus, r.coverImage)
   const duration = formatDuration(r.durationSec)
   const context = mode === 'guided' ? { ...answers, mode } : { mode }
 

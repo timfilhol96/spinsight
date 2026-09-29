@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
-import { ChevronDown, Square } from 'lucide-react'
+import { BookOpen, ChevronDown, Square } from 'lucide-react'
 import { toast } from 'sonner'
 import { VinylDisc } from '#/components/vinyl-disc'
 import { Button } from '#/components/ui/button'
@@ -64,7 +64,7 @@ function Dock({
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const [stopping, setStopping] = useState(false)
   const { now, min } = useElapsedMin(playing.startedAt)
-  useRecordTheme(playing.look, THEME_PRIORITY.playing)
+  useRecordTheme(playing.look, THEME_PRIORITY.playing, playing.coverImage)
 
   // Past the runtime: let the server confirm it's over, then disappear.
   useEffect(() => {
@@ -187,6 +187,22 @@ function Dock({
       </RecordLink>
 
       <div className="flex shrink-0 flex-col gap-1">
+        {/* Listening room mock-up: local dev only for now. */}
+        {import.meta.env.DEV && (
+          <Button size="icon-sm" variant="ghost" asChild>
+            <Link
+              to="/dev/listening"
+              search={{
+                release: playing.releaseId,
+                started: playing.startedAt,
+              }}
+              aria-label="Open the listening room"
+              title="Listening room (mock-up)"
+            >
+              <BookOpen />
+            </Link>
+          </Button>
+        )}
         <Button
           size="icon-sm"
           variant="ghost"
@@ -245,7 +261,7 @@ function RecordLink({
 }
 
 /** Three little bouncing bars. Static when reduced motion is on. */
-function Equalizer() {
+export function Equalizer() {
   return (
     <span className="flex h-2.5 items-end gap-px" aria-hidden>
       {[0, 150, 300].map((delay) => (

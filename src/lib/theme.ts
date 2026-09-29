@@ -1,5 +1,7 @@
+import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { recordTheme } from '#/lib/vinyl-color'
+import { getArtworkPalette } from '#/lib/listening.functions'
+import { artworkAccent, recordTheme } from '#/lib/vinyl-color'
 import type { VinylLook } from '#/lib/vinyl-color'
 
 // ---------- record-driven accent ----------
@@ -18,7 +20,8 @@ export const THEME_PRIORITY = {
   focus: 3,
 } as const
 
-type ThemeClaim = { look: VinylLook; priority: number; order: number }
+type Theme = NonNullable<ReturnType<typeof recordTheme>>
+type ThemeClaim = { theme: Theme; priority: number; order: number }
 const claims = new Map<number, ThemeClaim>()
 let nextId = 1
 let nextOrder = 1
@@ -34,7 +37,7 @@ function applyTopClaim() {
     )
       top = c
   }
-  const theme = top ? recordTheme(top.look) : null
+  const theme = top?.theme
   if (!theme) {
     root.style.removeProperty('--record-1')
     root.style.removeProperty('--record-2')
@@ -48,24 +51,36 @@ function applyTopClaim() {
 
 /**
  * While mounted with a coloured record, retints the app (accent, page glow)
- * to that pressing. Black vinyl makes no claim. The @property registrations
- * in styles.css make changes fade rather than snap.
+ * to that pressing. Black and picture discs take their colours from
+ * `artworkUrl` instead (local dev only for now: the cover is sampled on
+ * demand), and make no claim if the cover is black and white too. The
+ * @property registrations in styles.css make changes fade rather than snap.
  */
 export function useRecordTheme(
   look: VinylLook | null | undefined,
   priority: number = THEME_PRIORITY.page,
+  artworkUrl?: string | null,
 ) {
-  const key = look ? `${look.pattern}:${look.colors.join(',')}` : ''
+  const fromVinyl = look ? recordTheme(look) : null
+  const palette = useQuery({
+    queryKey: ['artwork-palette', artworkUrl],
+    queryFn: () => getArtworkPalette({ data: { url: artworkUrl! } }),
+    enabled: !fromVinyl && !!artworkUrl && import.meta.env.DEV,
+    staleTime: Infinity,
+    retry: false,
+  })
+  const theme = fromVinyl ?? (palette.data ? artworkAccent(palette.data) : null)
+  const key = theme ? `${theme.primary},${theme.secondary},${theme.ink}` : ''
   useEffect(() => {
-    if (!look || !recordTheme(look)) return
+    if (!theme) return
     const id = nextId++
-    claims.set(id, { look, priority, order: nextOrder++ })
+    claims.set(id, { theme, priority, order: nextOrder++ })
     applyTopClaim()
     return () => {
       claims.delete(id)
       applyTopClaim()
     }
-    // `key` captures everything about `look` that affects the theme.
+    // `key` captures everything about `theme`.
   }, [key, priority])
 }
 

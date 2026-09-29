@@ -364,7 +364,7 @@ export function isColoredVinyl(look: VinylLook | null | undefined): boolean {
 
 // ---------- colour maths for theming ----------
 
-function hexToRgb(hex: string): [number, number, number] {
+export function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace('#', '')
   const n = parseInt(h.length === 3 ? h.replace(/./g, (c) => c + c) : h, 16)
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
@@ -389,7 +389,7 @@ export function mixHex(a: string, b: string, t: number): string {
   )
 }
 
-function luminance(hex: string): number {
+export function luminance(hex: string): number {
   const [r, g, b] = hexToRgb(hex).map((v) => {
     const c = v / 255
     return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
@@ -397,9 +397,85 @@ function luminance(hex: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b
 }
 
-function contrast(a: string, b: string): number {
+export function contrast(a: string, b: string): number {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x)
   return (hi + 0.05) / (lo + 0.05)
+}
+
+/** 0 for greys, 1 for a pure hue. */
+function saturation(hex: string): number {
+  const rgb = hexToRgb(hex)
+  const max = Math.max(...rgb)
+  return max ? (max - Math.min(...rgb)) / max : 0
+}
+
+/**
+ * Accent colours from the album artwork, for records whose vinyl gives none
+ * (black, picture discs). Picks the cover's most vivid colours, weighted by
+ * how much of the cover they fill; a black-and-white cover gives null so the
+ * shop palette stays.
+ */
+export function artworkAccent(
+  palette: Array<{ hex: string; share: number }>,
+): ReturnType<typeof recordTheme> {
+  const vivid = palette
+    .filter((p) => saturation(p.hex) >= 0.25 && luminance(p.hex) > 0.02)
+    .sort(
+      (a, b) =>
+        saturation(b.hex) * Math.sqrt(b.share) -
+        saturation(a.hex) * Math.sqrt(a.share),
+    )
+  if (!vivid.length) return null
+  // The glow colour should differ from the accent, not echo it.
+  const first = hexToRgb(vivid[0].hex)
+  const second = vivid.find((p) => {
+    const c = hexToRgb(p.hex)
+    return Math.hypot(c[0] - first[0], c[1] - first[1], c[2] - first[2]) > 60
+  })
+  return recordTheme({
+    pattern: 'solid',
+    colors: [vivid[0].hex, ...(second ? [second.hex] : [])],
+    translucent: false,
+    label: null,
+  })
+}
+
+/**
+ * A whole palette taken from the album artwork, for stand mode: the cover's
+ * main colour as the backdrop, readable text on it, and its most vivid other
+ * colour as the accent. Returned as CSS variables to set on a container.
+ * `palette` is dominant colours, most common first.
+ */
+export function artworkTheme(
+  palette: Array<{ hex: string; share: number }>,
+): Record<string, string> | null {
+  if (!palette.length) return null
+  const background = palette[0].hex
+  const DARK = '#141010'
+  const LIGHT = '#fbf7f0'
+  const inkOn = (hex: string) =>
+    contrast(hex, DARK) >= contrast(hex, LIGHT) ? DARK : LIGHT
+  const foreground = inkOn(background)
+  const others = palette.slice(1).map((p) => p.hex)
+  // The accent has to stand out from the backdrop to be worth using.
+  const accent =
+    others
+      .filter((h) => contrast(h, background) >= 1.6)
+      .sort((a, b) => saturation(b) - saturation(a))[0] ?? foreground
+  const glow =
+    others.find((h) => h !== accent) ?? mixHex(background, foreground, 0.15)
+  return {
+    '--background': background,
+    '--foreground': foreground,
+    '--muted-foreground': mixHex(foreground, background, 0.35),
+    '--card': mixHex(background, foreground, 0.06),
+    '--accent': mixHex(background, foreground, 0.12),
+    '--accent-foreground': foreground,
+    '--border': mixHex(background, foreground, 0.2),
+    '--record-1': accent,
+    '--record-2': glow,
+    '--record-ink': inkOn(accent),
+  }
 }
 
 /**

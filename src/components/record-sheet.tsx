@@ -39,7 +39,7 @@ function Stat({
 
 function RecordDetail({ record }: { record: CollectionRecord }) {
   // The whole app takes on this pressing's colour while it's open.
-  useRecordTheme(record.look, THEME_PRIORITY.focus)
+  useRecordTheme(record.look, THEME_PRIORITY.focus, record.coverImage)
   const money = useMoney()
   const { isOwner } = useProfile()
   const wantRatio =
