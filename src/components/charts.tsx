@@ -16,11 +16,12 @@ import { cn } from '#/lib/utils'
 import type { Ranked } from '#/lib/stats'
 
 // Chart conventions (one place, so every chart matches):
-// single series in the shop accent, thin marks with 4px rounded data-ends,
-// solid hairline grid, tooltip on every mark, numbers in the sans face, and a
-// table view on every card so no value is tooltip-only.
+// single series in the record accent (the spinning pressing's colour, else the
+// shop's), thin marks with 4px rounded data-ends, solid hairline grid, tooltip
+// on every mark, numbers in the sans face, and a table view on every card so
+// no value is tooltip-only.
 
-const ACCENT = 'var(--primary)'
+const ACCENT = 'var(--record-1)'
 const CONTEXT = 'color-mix(in oklab, var(--muted-foreground) 45%, transparent)'
 const AXIS = {
   stroke: 'var(--muted-foreground)',
@@ -297,7 +298,7 @@ export function BarList({
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-primary transition-[width] duration-500"
+                className="h-full rounded-full bg-record-1 transition-[width] duration-500"
                 style={{ width: `${Math.max(2, (item.count / max) * 100)}%` }}
               />
             </div>

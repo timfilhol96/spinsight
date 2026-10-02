@@ -172,7 +172,7 @@ function InsightsPage() {
       {stats.onThisDay.length > 0 && (
         <section className="mt-6 rounded-2xl border border-record-1/40 bg-record-1/10 p-5">
           <p className="kicker">On this day</p>
-          <ul className="mt-2 grid gap-1 sm:grid-cols-2">
+          <ul className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
             {stats.onThisDay.map((r) => (
               <RecordRow
                 key={r.instanceId}
@@ -209,8 +209,8 @@ function InsightsPage() {
             )}
           </div>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-3">
-            <div className="grid gap-4 sm:grid-cols-3 lg:col-span-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:col-span-3">
               <StatTile
                 label="Spins logged"
                 value={stats.listening.total}
@@ -241,7 +241,7 @@ function InsightsPage() {
               metric={() => ''}
               onOpen={open}
             />
-            <div className="grid gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <ChartCard
                 title="When you listen"
                 table={{
@@ -281,7 +281,7 @@ function InsightsPage() {
 
       {/* ---------- growth ---------- */}
       <Section kicker="Digging habits" title="How the collection grew">
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <ChartCard
             className="lg:col-span-2"
             title="Records over time"
@@ -309,7 +309,7 @@ function InsightsPage() {
 
       {/* ---------- what ---------- */}
       <Section kicker="What's in the crates" title="Genres & styles">
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <ChartCard
             title="Genres"
             subtitle="Discogs genres; a record can have several. Click to browse."
@@ -337,7 +337,7 @@ function InsightsPage() {
 
       {/* ---------- when ---------- */}
       <Section kicker="Time travel" title="When the music was made">
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <ChartCard
             className="lg:col-span-2"
             title="Records by decade"
@@ -392,7 +392,7 @@ function InsightsPage() {
               }}
             />
           </ChartCard>
-          <div className="grid gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <ExtremeCard
               label="Oldest music"
               record={stats.years.original.oldest}
@@ -427,7 +427,7 @@ function InsightsPage() {
 
       {/* ---------- who & where ---------- */}
       <Section kicker="Who & where" title="Artists, labels, countries">
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <ChartCard
             title="Top artists"
             table={rankedTable(stats.artists, 'Artist', n)}
@@ -468,7 +468,7 @@ function InsightsPage() {
 
       {/* ---------- formats & colour ---------- */}
       <Section kicker="The physical stuff" title="Formats & colour">
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <ChartCard
             title="Formats & editions"
             subtitle="From Discogs format descriptions"
@@ -498,7 +498,7 @@ function InsightsPage() {
                     aria-label={`${Math.round(stats.color.share * 100)}% coloured vinyl`}
                   >
                     <div
-                      className="h-full rounded-full bg-primary"
+                      className="h-full rounded-full bg-record-1"
                       style={{ width: `${stats.color.share * 100}%` }}
                     />
                   </div>
@@ -552,7 +552,7 @@ function InsightsPage() {
             {profile.isOwner ? ' (use “Fetch details” above)' : ''}.
           </p>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             <RankCard
               title="Most wanted"
               subtitle="Discogs users with it on their wantlist"
@@ -617,7 +617,7 @@ function InsightsPage() {
                   <div className="mt-2">
                     <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                       <div
-                        className="h-full rounded-full bg-primary/70"
+                        className="h-full rounded-full bg-record-1/70"
                         style={{ width: `${(b.value / b.target) * 100}%` }}
                       />
                     </div>

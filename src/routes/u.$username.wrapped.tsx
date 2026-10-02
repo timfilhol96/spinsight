@@ -104,7 +104,7 @@ function WrappedPage() {
         )}
       </div>
 
-      <section className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+      <section className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
         {/* The "sleeve": the year's summary, designed to screenshot well. */}
         <div className="sleeve-shadow relative aspect-square overflow-hidden rounded-md bg-gradient-to-br from-record-1 via-record-1/80 to-record-2 p-7 text-record-ink md:p-9">
           <VinylDisc
@@ -146,7 +146,7 @@ function WrappedPage() {
           </div>
         </div>
 
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <ChartCard
             title="Month by month"
             table={{

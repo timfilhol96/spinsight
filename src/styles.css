@@ -156,6 +156,12 @@ html {
 html,
 body {
   min-height: 100%;
+  /* Vertical scrolling only. Spinning discs are square SVGs whose rotated
+     corners poke past the screen edge on phones; mobile Safari ignores this
+     on body alone, so it's on html too. clip (not hidden) keeps the sticky
+     header working. */
+  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body {
@@ -175,7 +181,6 @@ body {
       transparent 70%
     );
   background-attachment: fixed;
-  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
