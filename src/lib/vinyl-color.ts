@@ -409,47 +409,19 @@ function saturation(hex: string): number {
   return max ? (max - Math.min(...rgb)) / max : 0
 }
 
-/**
- * Accent colours from the album artwork, for records whose vinyl gives none
- * (black, picture discs). Picks the cover's most vivid colours, weighted by
- * how much of the cover they fill; a black-and-white cover gives null so the
- * shop palette stays.
- */
-export function artworkAccent(
-  palette: Array<{ hex: string; share: number }>,
-): ReturnType<typeof recordTheme> {
-  const vivid = palette
-    .filter((p) => saturation(p.hex) >= 0.25 && luminance(p.hex) > 0.02)
-    .sort(
-      (a, b) =>
-        saturation(b.hex) * Math.sqrt(b.share) -
-        saturation(a.hex) * Math.sqrt(a.share),
-    )
-  if (!vivid.length) return null
-  // The glow colour should differ from the accent, not echo it.
-  const first = hexToRgb(vivid[0].hex)
-  const second = vivid.find((p) => {
-    const c = hexToRgb(p.hex)
-    return Math.hypot(c[0] - first[0], c[1] - first[1], c[2] - first[2]) > 60
-  })
-  return recordTheme({
-    pattern: 'solid',
-    colors: [vivid[0].hex, ...(second ? [second.hex] : [])],
-    translucent: false,
-    label: null,
-  })
+/** How much colour there is at all: 0 for greys, black and white. */
+function chroma(hex: string): number {
+  const rgb = hexToRgb(hex)
+  return (Math.max(...rgb) - Math.min(...rgb)) / 255
 }
 
 /**
- * A whole palette taken from the album artwork, for stand mode: the cover's
- * main colour as the backdrop, readable text on it, and its most vivid other
- * colour as the accent. Returned as CSS variables to set on a container.
+ * How stand mode reads the album artwork: the cover's main colour as the
+ * backdrop, readable ink on it, the most vivid colour that stands out from the
+ * backdrop as the accent, and another cover colour for the glow.
  * `palette` is dominant colours, most common first.
  */
-export function artworkTheme(
-  palette: Array<{ hex: string; share: number }>,
-): Record<string, string> | null {
-  if (!palette.length) return null
+function artworkColors(palette: Array<{ hex: string; share: number }>) {
   const background = palette[0].hex
   const DARK = '#141010'
   const LIGHT = '#fbf7f0'
@@ -464,6 +436,42 @@ export function artworkTheme(
       .sort((a, b) => saturation(b) - saturation(a))[0] ?? foreground
   const glow =
     others.find((h) => h !== accent) ?? mixHex(background, foreground, 0.15)
+  return { background, foreground, accent, glow, inkOn }
+}
+
+/**
+ * Accent colours from the album artwork, for records whose vinyl gives none
+ * (black, picture discs): the same accent and glow as stand mode, so the app
+ * wears the cover's gradient. A black-and-white cover gives null so the shop
+ * palette stays.
+ */
+export function artworkAccent(
+  palette: Array<{ hex: string; share: number }>,
+): ReturnType<typeof recordTheme> {
+  if (!palette.length) return null
+  const { accent, glow } = artworkColors(palette)
+  // Greys, blacks and whites (ink, paper) carry no colour; let a coloured one
+  // lead. Chroma, not saturation: near-black reads as saturated.
+  const colors = [accent, glow].filter((h) => chroma(h) >= 0.1)
+  if (!colors.length) return null
+  return recordTheme({
+    pattern: 'solid',
+    colors,
+    translucent: false,
+    label: null,
+  })
+}
+
+/**
+ * A whole palette taken from the album artwork, for stand mode, returned as
+ * CSS variables to set on a container. `palette` is dominant colours, most
+ * common first.
+ */
+export function artworkTheme(
+  palette: Array<{ hex: string; share: number }>,
+): Record<string, string> | null {
+  if (!palette.length) return null
+  const { background, foreground, accent, glow, inkOn } = artworkColors(palette)
   return {
     '--background': background,
     '--foreground': foreground,
