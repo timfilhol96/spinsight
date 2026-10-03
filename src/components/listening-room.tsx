@@ -125,7 +125,7 @@ export function ListeningRoom({
       role="dialog"
       aria-modal
       aria-label={`Listening room: ${record.title} by ${record.artist}`}
-      className="fixed inset-0 z-[60] overflow-y-auto bg-background"
+      className="fixed inset-0 z-[60] overflow-x-hidden overflow-y-auto bg-background"
     >
       <div
         aria-hidden
@@ -158,8 +158,8 @@ export function ListeningRoom({
         </div>
       </header>
 
-      <div className="page-wrap relative grid gap-10 pt-8 pb-32 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] lg:gap-14">
-        <aside className="space-y-6 lg:sticky lg:top-22 lg:self-start">
+      <div className="page-wrap relative grid grid-cols-1 gap-10 pt-8 pb-32 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] lg:gap-14">
+        <aside className="min-w-0 space-y-6 lg:sticky lg:top-22 lg:self-start">
           <Platter
             record={record}
             spinning={follower.position?.state === 'playing'}
@@ -737,7 +737,7 @@ function CreditsSection({ notes }: { notes: LinerNotes }) {
 
 function Mini({ record }: { record: CollectionRecord }) {
   return (
-    <div className="flex w-28 shrink-0 flex-col gap-1.5">
+    <div className="flex min-w-0 flex-col gap-1.5">
       <div className="sleeve-shadow aspect-square overflow-hidden rounded-[2px] bg-muted">
         {record.thumb && (
           <img
@@ -779,7 +779,7 @@ function ShelfSection({
       {shelf.connections.map((c) => (
         <div key={c.label} className="pt-2">
           <p className="kicker mb-2">{c.label}</p>
-          <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 [scrollbar-width:thin]">
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
             {c.records.map((r) => (
               <Mini key={r.instanceId} record={r} />
             ))}

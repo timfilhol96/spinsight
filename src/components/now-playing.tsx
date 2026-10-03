@@ -48,18 +48,10 @@ export function NowPlayingDock() {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
   if (!mounted || !viewer || !playing) return null
-  return (
-    <Dock key={playing.playId} playing={playing} username={viewer.username} />
-  )
+  return <Dock key={playing.playId} playing={playing} />
 }
 
-function Dock({
-  playing,
-  username,
-}: {
-  playing: NowPlaying
-  username: string
-}) {
+function Dock({ playing }: { playing: NowPlaying }) {
   const qc = useQueryClient()
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const [stopping, setStopping] = useState(false)
@@ -133,10 +125,10 @@ function Dock({
         'rise-in',
       )}
     >
-      <RecordLink
-        playing={playing}
-        username={username}
-        className="flex min-w-0 flex-1 items-center gap-3 rounded-lg"
+      <Link
+        to="/listening"
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        aria-label={`${playing.title} by ${playing.artist}. Open the listening room.`}
       >
         {/* Sleeve with the disc half out of it, spinning. */}
         <div className="relative h-16 w-24 shrink-0">
@@ -185,7 +177,7 @@ function Dock({
             </span>
           </div>
         </div>
-      </RecordLink>
+      </Link>
 
       <div className="flex shrink-0 flex-col gap-1">
         <Button size="icon-sm" variant="ghost" asChild>
@@ -249,40 +241,6 @@ function FriendsLine({ playing }: { playing: NowPlaying }) {
         </span>
       )}
     </p>
-  )
-}
-
-/**
- * Opens the record's card on the owner's collection page. Plain wrapper when
- * the copy has left the collection, since there's no card to show.
- */
-function RecordLink({
-  playing,
-  username,
-  className,
-  children,
-}: {
-  playing: NowPlaying
-  username: string
-  className?: string
-  children: React.ReactNode
-}) {
-  if (playing.instanceId == null) {
-    return <div className={className}>{children}</div>
-  }
-  return (
-    <Link
-      to="/u/$username"
-      params={{ username }}
-      search={{ open: playing.instanceId }}
-      className={cn(
-        className,
-        'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-      )}
-      aria-label={`${playing.title} by ${playing.artist}. Open record card.`}
-    >
-      {children}
-    </Link>
   )
 }
 
