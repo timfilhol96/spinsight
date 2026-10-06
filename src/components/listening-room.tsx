@@ -985,10 +985,13 @@ const MIN_FIT = 0.5
  * Shrinks `inner` (via CSS zoom) until it fits in `outer`. On a phone a long
  * accolade would otherwise push the record's name off the top of the screen
  * and its own end off the bottom. Starts again at full size whenever
- * `content` or the window size changes.
+ * `content` or the window size changes. Measures `inner`'s own box rather than
+ * `outer`'s scrollHeight, which also counts the praise sliding in from below
+ * and would shrink the text for nothing.
  */
 function useFitScale(
   outer: React.RefObject<HTMLElement | null>,
+  inner: React.RefObject<HTMLElement | null>,
   content: unknown[],
 ): number {
   const [scale, setScale] = useState(1)
@@ -1001,8 +1004,14 @@ function useFitScale(
   useLayoutEffect(() => setScale(1), [size, ...content])
   // Runs after each render, before paint: steps down until nothing overflows.
   useLayoutEffect(() => {
-    const el = outer.current
-    if (el && el.scrollHeight > el.clientHeight + 1 && scale > MIN_FIT)
+    const box = outer.current
+    const el = inner.current
+    if (
+      box &&
+      el &&
+      el.getBoundingClientRect().height > box.clientHeight + 1 &&
+      scale > MIN_FIT
+    )
       setScale((s) => Math.max(MIN_FIT, Math.round((s - 0.05) * 100) / 100))
   })
   return scale
@@ -1065,7 +1074,8 @@ function StandMode({
   }, [praiseIdx])
   const shown = praise.length ? praise[praiseIdx % praise.length] : null
   const textBox = useRef<HTMLDivElement>(null)
-  const fit = useFitScale(textBox, [
+  const textInner = useRef<HTMLDivElement>(null)
+  const fit = useFitScale(textBox, textInner, [
     shown,
     p?.state,
     p?.state === 'playing' ? p.track.title : null,
@@ -1116,9 +1126,10 @@ function StandMode({
 
         <div
           ref={textBox}
-          className="flex min-h-0 min-w-0 flex-1 flex-col justify-[safe_center] overflow-hidden"
+          className="flex min-h-0 min-w-0 flex-1 flex-col justify-[safe_center] overflow-hidden landscape:self-stretch"
         >
           <div
+            ref={textInner}
             className="flex flex-col gap-6 md:gap-10"
             style={fit < 1 ? { zoom: fit } : undefined}
           >
