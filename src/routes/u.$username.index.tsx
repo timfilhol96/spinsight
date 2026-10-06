@@ -80,7 +80,13 @@ function CollectionPage() {
   const navigate = useNavigate({ from: Route.fullPath })
 
   const setSearch = (patch: Partial<CollectionSearch>) =>
-    navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true })
+    navigate({
+      search: (prev) => ({ ...prev, ...patch }),
+      replace: true,
+      // Opening or closing a record keeps your place in the crate; a new
+      // filter or sort changes the list, so it starts from the top.
+      resetScroll: !(Object.keys(patch).length === 1 && 'open' in patch),
+    })
 
   const genreCounts = useMemo(() => {
     const counts = new Map<string, number>()
