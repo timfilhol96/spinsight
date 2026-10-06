@@ -4,6 +4,8 @@
 export type WikiPage = {
   title: string
   url: string
+  /** Wikipedia language code: the album's own language can come before English. */
+  lang: string
   /** Wikipedia's one-liner, e.g. "2016 studio album by DIIV". */
   description: string | null
   /** The lead section. */
@@ -14,15 +16,32 @@ export type WikiPage = {
 
 export type CreditGroup = { role: string; names: string[] }
 
-/** A critic's high mark: a list placing, a quote or a score. */
+/**
+ * A high mark for the record: an award, a list placing, a sales
+ * certification, a chart peak, a critic's quote or a score.
+ */
 export type Praise = {
-  kind: 'accolade' | 'quote' | 'rating'
-  /** "No. 7, NME's Albums of the Year 2016", the quote itself, or "4/5". */
+  kind: 'award' | 'accolade' | 'certification' | 'chart' | 'quote' | 'rating'
+  /**
+   * "Won · Album of the Year, Grammy Awards 2014", "No. 7, NME's Albums of the
+   * Year 2016", "Platinum in the UK · Gold in France", "No. 1 · UK Albums",
+   * the quote itself, or "4/5". " · " separates parts shown on their own line.
+   */
   text: string
-  /** Who said it: the publication. */
+  /** Who said it: the publication, award body or "1,203 Discogs ratings". */
   by: string
   /** For quotes: the score that publication gave. */
   score?: string
+}
+
+/** At-a-glance facts from the album's Wikipedia infobox. */
+export type AlbumFacts = {
+  /** "July 1996 – 6 March 1997"; several lines when sessions were split. */
+  recorded: string[]
+  studios: string[]
+  producers: string[]
+  /** Running time, "53:21". */
+  length: string | null
 }
 
 export type TrackNotes = {
@@ -55,13 +74,19 @@ export type LinerNotes = {
     discogsUrl: string | null
   } | null
   wiki: { album: WikiPage | null; artist: WikiPage | null }
-  /** Critics' highest marks for the album (from its Wikipedia article). */
+  /** Studio, producers, running time (from the album's Wikipedia infobox). */
+  albumFacts: AlbumFacts | null
+  /** The album's highest marks: Wikipedia's awards, lists, charts and reviews, plus the Discogs community rating. */
   praise: Praise[]
   tracks: TrackNotes[]
-  /** Streaming track lengths, when Discogs has no track times. */
+  /**
+   * Lengths for the tracks Discogs has no time for, by track position,
+   * matched by song title on the streaming album or Spotify.
+   */
   streaming: {
     source: 'spotify' | 'itunes'
-    lengths: number[]
-    album: string
+    lengths: Array<{ position: string; sec: number }>
+    /** The streaming album they came from; null when found song by song. */
+    album: string | null
   } | null
 }

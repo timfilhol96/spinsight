@@ -1,19 +1,39 @@
 import { matchKey } from '#/lib/artwork.server'
-import type { Praise } from '#/lib/liner-notes'
+import type { AlbumFacts, Praise } from '#/lib/liner-notes'
 
 // Critics' praise for an album, read from its Wikipedia article's wikitext:
-// the review-score box ({{Music ratings}}), the accolades table and quotes in
-// the reception section. Only the highest marks are kept; stand mode shows
-// them, and a middling review is not something to put on the wall.
+// the review-score box ({{Music ratings}}), the accolades and awards tables,
+// sales certifications, chart peaks and quotes in the reception section. Only
+// the highest marks are kept; stand mode shows them, and a middling review is
+// not something to put on the wall. The infobox facts (studio, producer…) are
+// read here too, since they come out of the same wikitext.
+//
+// Wikitext is hand-written and messy: every parser here returns [] or null on
+// anything it doesn't recognise rather than throwing.
 
 /** Scores at or above this share of the maximum count as high. */
 const HIGH = 0.8
 /** List placings at or above this rank count (unranked lists count too). */
 const TOP_RANK = 10
+/** Chart peaks at or above this position count. */
+const TOP_PEAK = 10
+/** Community averages (out of 5) at or above this count as high. */
+export const HIGH_COMMUNITY = 4.0
+/** Fewer votes than this and an average says more about who voted than the record. */
+export const MIN_COMMUNITY_VOTES = 25
 /** Longer quotes don't read from across the room. */
 const MAX_QUOTE = 300
 /** Bare scores shown at most; quotes and placings say more. */
 const MAX_RATINGS = 4
+/** Awards shown at most, before completing the last award body (see capByBody). */
+const MAX_AWARDS = 4
+/** List placings shown at most; a celebrated album has dozens. */
+const MAX_ACCOLADES = 4
+/** Countries named in the certification line; the rest are counted. */
+const MAX_CERTS = 3
+/** Chart lines (one per peak position) and charts named on each. */
+const MAX_CHART_LINES = 2
+const MAX_CHARTS = 4
 
 /** The `{{…}}` starting at `from`, with nested templates balanced. */
 function templateAt(text: string, from: number): string {
@@ -50,6 +70,62 @@ function replaceTemplates(
     i = at + tpl.length
   }
   return out
+}
+
+/** Every `{{name|…}}` in the text (`name` matched case-insensitively). */
+function templatesNamed(text: string, name: RegExp): string[] {
+  const re = new RegExp(`\\{\\{\\s*(?:${name.source})\\s*[|}]`, 'gi')
+  const out: string[] = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text))) out.push(templateAt(text, m.index))
+  return out
+}
+
+/**
+ * A template's parameters, split on top-level "|" only: values are often
+ * templates or links themselves.
+ */
+function templateParams(tpl: string): {
+  positional: string[]
+  named: Map<string, string>
+} {
+  const positional: string[] = []
+  const named = new Map<string, string>()
+  const parts: string[] = []
+  let depth = 0
+  let cur = ''
+  for (let i = 2; i < tpl.length - 2; i++) {
+    const two = tpl.slice(i, i + 2)
+    if (two === '{{' || two === '[[') {
+      depth++
+      cur += two
+      i++
+      continue
+    }
+    if (two === '}}' || two === ']]') {
+      depth--
+      cur += two
+      i++
+      continue
+    }
+    if (tpl[i] === '|' && depth === 0) {
+      parts.push(cur)
+      cur = ''
+      continue
+    }
+    cur += tpl[i]
+  }
+  parts.push(cur)
+  // parts[0] is the template's name.
+  for (const p of parts.slice(1)) {
+    const eq = p.indexOf('=')
+    // "=" inside a link or template is part of the value, not a name.
+    const named_ = eq > 0 && !/[[{]/.test(p.slice(0, eq))
+    if (named_)
+      named.set(p.slice(0, eq).trim().toLowerCase(), p.slice(eq + 1).trim())
+    else positional.push(p.trim())
+  }
+  return { positional, named }
 }
 
 const stripRefs = (w: string) =>
@@ -122,40 +198,7 @@ type Review = { by: string; score: Score }
 function ratings(wikitext: string): Review[] {
   const at = wikitext.search(/\{\{\s*(music|album) ratings/i)
   if (at < 0) return []
-  const box = templateAt(wikitext, at)
-  const params = new Map<string, string>()
-  // Split on top-level "|" only: scores are often templates themselves.
-  let depth = 0
-  let cur = ''
-  for (let i = 2; i < box.length - 2; i++) {
-    const two = box.slice(i, i + 2)
-    if (two === '{{' || two === '[[') {
-      depth++
-      cur += two
-      i++
-      continue
-    }
-    if (two === '}}' || two === ']]') {
-      depth--
-      cur += two
-      i++
-      continue
-    }
-    if (box[i] === '|' && depth === 0) {
-      const eq = cur.indexOf('=')
-      if (eq > 0)
-        params.set(
-          cur.slice(0, eq).trim().toLowerCase(),
-          cur.slice(eq + 1).trim(),
-        )
-      cur = ''
-      continue
-    }
-    cur += box[i]
-  }
-  const eq = cur.indexOf('=')
-  if (eq > 0)
-    params.set(cur.slice(0, eq).trim().toLowerCase(), cur.slice(eq + 1).trim())
+  const params = templateParams(templateAt(wikitext, at)).named
 
   const out: Review[] = []
   const agg: Record<string, string> = {
@@ -188,34 +231,101 @@ function section(wikitext: string, heading: RegExp): string | null {
   return null
 }
 
-/** Rows of the first wikitable in a section, as { header: cell } objects. */
-function tableRows(body: string): Array<Record<string, string>> {
-  const table = /\{\|[\s\S]*?\n\|\}/.exec(body)?.[0]
-  if (!table) return []
-  const rows = table.split(/\n\|-[^\n]*/).slice(1)
+/** The bodies of every section whose heading matches. */
+function sections(wikitext: string, heading: RegExp): string[] {
+  const re = /^(==+)\s*(.+?)\s*\1\s*$/gm
+  const out: string[] = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(wikitext))) {
+    if (!heading.test(m[2])) continue
+    const rest = wikitext.slice(m.index + m[0].length)
+    const end = new RegExp(`^={2,${m[1].length}}[^=]`, 'm').exec(rest)
+    out.push(end ? rest.slice(0, end.index) : rest)
+  }
+  return out
+}
+
+/** Every wikitable in a section. */
+const tables = (body: string): string[] =>
+  body.match(/\{\|[\s\S]*?\n\|\}/g) ?? []
+
+/** {{won}}, {{nom}} and friends: award tables mark results with them. */
+const resultTemplates = (tpl: string): string | null => {
+  const m =
+    /^\{\{\s*(won|nom|nominated|shortlisted|longlisted|pending)\s*(\|[\s\S]*)?\}\}$/i.exec(
+      tpl,
+    )
+  if (!m) return inlineTemplates(tpl)
+  const r = m[1].toLowerCase()
+  return r === 'nom' ? 'Nominated' : r[0].toUpperCase() + r.slice(1)
+}
+
+/** A cell's visible text: templates, links and inline HTML gone. */
+const cellText = (c: string) =>
+  plain(
+    replaceTemplates(c, resultTemplates)
+      .replace(/<br\s*\/?>/gi, ' ')
+      .replace(/<[^>]+>/g, ''),
+  )
+
+/** Cell attributes ("style=… | text", 'rowspan="2" | text') split from the text. */
+function cellParts(c: string): { text: string; rowspan: number } {
+  const attr = /^([^[{|]*=[^|]*)\|(?!\|)/.exec(c)
+  const span = attr && /rowspan\s*=\s*["']?(\d+)/i.exec(attr[1])
+  return {
+    text: attr ? c.slice(attr[0].length) : c,
+    rowspan: span ? Math.max(1, Number(span[1])) : 1,
+  }
+}
+
+/**
+ * A wikitable's rows as { header: cell } objects. Handles row headers
+ * ("! scope=row | NME"), cells spanning rows (award tables group a year's
+ * ceremonies) and cells that run onto the next line. Rows that still don't
+ * line up with the headers are dropped.
+ */
+function tableRows(table: string): Array<Record<string, string>> {
   let headers: string[] = []
+  // Cells still spanning down from rows above, by column.
+  let held: Array<{ text: string; left: number } | undefined> = []
   const out: Array<Record<string, string>> = []
-  for (const row of rows) {
-    const lines = row
-      .split('\n')
-      .map((l) => l.trim())
-      .filter(Boolean)
-    if (lines.every((l) => l.startsWith('!'))) {
-      headers = lines
-        .flatMap((l) => l.slice(1).split('!!'))
-        .map((h) => plain(h.replace(/^[^|]*\|(?!\|)/, '')).toLowerCase())
+  for (const row of table.split(/\n\s*\|-[^\n]*/)) {
+    const cells: string[] = []
+    let allHeader = true
+    for (const raw of row.split('\n')) {
+      const l = raw.trim()
+      if (!l || /^(\{\||\|\}|\|\+)/.test(l)) continue
+      if (l.startsWith('!')) cells.push(...l.slice(1).split(/!!|\|\|/))
+      else if (l.startsWith('|')) {
+        allHeader = false
+        cells.push(...l.slice(1).split('||'))
+      } else if (cells.length) cells[cells.length - 1] += `\n${l}`
+    }
+    if (!cells.length) continue
+    const parts = cells.map(cellParts)
+    if (allHeader) {
+      headers = parts.map((p) => cellText(p.text).toLowerCase())
+      held = []
       continue
     }
-    const cells = lines
-      .filter((l) => l.startsWith('|') && !l.startsWith('|}'))
-      .flatMap((l) => l.slice(1).split('||'))
-      // Drop cell attributes ("style=… | text").
-      .map((c) =>
-        /^[^[{|]*=[^|]*\|(?!\|)/.test(c) ? c.replace(/^[^|]*\|/, '') : c,
-      )
-      .map((c) => plain(replaceTemplates(c, inlineTemplates)))
-    if (headers.length && cells.length === headers.length)
-      out.push(Object.fromEntries(headers.map((h, i) => [h, cells[i]])))
+    if (!headers.length) continue
+    const values: string[] = []
+    let next = 0
+    for (let col = 0; col < headers.length; col++) {
+      const h = held[col]
+      if (h && h.left > 0) {
+        values.push(h.text)
+        h.left--
+        continue
+      }
+      const p = parts[next++] as ReturnType<typeof cellParts> | undefined
+      if (!p) break
+      const text = cellText(p.text)
+      values.push(text)
+      held[col] = p.rowspan > 1 ? { text, left: p.rowspan - 1 } : undefined
+    }
+    if (values.length === headers.length && next === parts.length)
+      out.push(Object.fromEntries(headers.map((h, i) => [h, values[i]])))
   }
   return out
 }
@@ -224,7 +334,7 @@ function accolades(wikitext: string): Praise[] {
   const body = section(wikitext, /^(accolades|year-end lists|rankings|lists)$/i)
   if (!body) return []
   const out: Array<Praise & { rank: number }> = []
-  for (const row of tableRows(body)) {
+  for (const row of tables(body).flatMap(tableRows)) {
     const by = row.publication ?? row.publisher ?? row.critic ?? row.source
     const list = row.accolade ?? row.list ?? row.title
     const rawRank = row.rank ?? row.position ?? ''
@@ -239,7 +349,10 @@ function accolades(wikitext: string): Praise[] {
       rank: ranked ? rank : TOP_RANK + 1,
     })
   }
-  return out.sort((a, b) => a.rank - b.rank).map(({ rank: _rank, ...p }) => p)
+  return out
+    .sort((a, b) => a.rank - b.rank)
+    .slice(0, MAX_ACCOLADES)
+    .map(({ rank: _rank, ...p }) => p)
 }
 
 /**
@@ -277,16 +390,331 @@ function quotes(wikitext: string, high: Review[]): Praise[] {
   return out
 }
 
-/** The album's highest praise, best first: top list placings, quotes, scores. */
-export function praiseFrom(wikitext: string): Praise[] {
+/** Awards where a nomination is itself an honour; elsewhere only wins count. */
+const MAJOR_AWARD =
+  /grammy|\bbrit awards?\b|mercury|polaris|juno|victoires de la musique/i
+
+/** The album's name from its infobox, to tell album awards from its singles'. */
+function infoboxName(wikitext: string): string | null {
+  const at = wikitext.search(/\{\{\s*infobox album/i)
+  if (at < 0) return null
+  const name = templateParams(templateAt(wikitext, at)).named.get('name')
+  return name ? plain(name) : null
+}
+
+/** An award from structured data (Wikidata), already split into body and category. */
+export type AwardFact = {
+  /** "Grammy Awards", "Mercury Prize". */
+  body: string
+  /** "Album of the Year"; null when the award has no categories. */
+  category: string | null
+  won: boolean
+  year: string | null
+}
+
+/** Award bodies compared loosely: "Grammy Award" and "Grammy Awards" are one. */
+const bodyKey = (s: string) => matchKey(s).replace(/s$/, '')
+
+/**
+ * Industry awards from Year / Award / Category / Result tables (Grammys,
+ * Mercury…), plus `facts` from Wikidata that the tables don't already have.
+ * Wins anywhere count; nominations only for the major awards, since
+ * "nominated for a regional blog award" is no accolade.
+ */
+function awards(
+  wikitext: string,
+  facts: AwardFact[],
+): { won: Praise[]; nominated: Praise[] } {
+  const album = matchKey(infoboxName(wikitext) ?? '')
+  const found: Array<Praise & { won: boolean; order: number }> = []
+  const bodies = sections(wikitext, /award|accolade|nominat|honou?rs/i)
+  for (const row of bodies.flatMap(tables).flatMap(tableRows)) {
+    const rawBody =
+      row.ceremony ??
+      row.organization ??
+      row.organisation ??
+      row['awarding body'] ??
+      row.association ??
+      row.award ??
+      row.awards
+    const category =
+      row.category ?? (row.award !== rawBody ? row.award : undefined)
+    const result = row.result ?? row.outcome ?? ''
+    if (!rawBody || !category) continue
+    const won = /^(won|winner)/i.test(result)
+    if (!won && !/^(nominated|shortlisted)/i.test(result)) continue
+    // "56th Annual Grammy Awards" / "2014 Brit Awards" → "Grammy Awards".
+    const by = rawBody
+      .replace(/^\d{4}\s+/, '')
+      .replace(/^\d+(st|nd|rd|th)\s+(annual\s+)?/i, '')
+      .trim()
+    const major = MAJOR_AWARD.test(by)
+    if (!won && !major) continue
+    const year = /\b(19|20)\d{2}\b/.exec(row.year ?? row.date ?? rawBody)?.[0]
+    const work = (
+      row['nominated work'] ??
+      row['nominee / work'] ??
+      row['nominee/work'] ??
+      row.work ??
+      ''
+    )
+      .replace(/^["“]|["”]$/g, '')
+      .trim()
+    const forAlbum = !work || matchKey(work) === album
+    const text = `${won ? 'Won' : 'Nominated'} · ${category}${
+      forAlbum ? '' : ` for “${work}”`
+    }, ${by}${year ? ` ${year}` : ''}`
+    if (found.some((f) => f.text === text)) continue
+    found.push({
+      kind: 'award',
+      text,
+      by,
+      won,
+      // Major awards first, then the album's own over its singles'.
+      order: (major ? 0 : 2) + (forAlbum ? 0 : 1),
+    })
+  }
+  for (const f of facts) {
+    if (!f.won && !MAJOR_AWARD.test(f.body)) continue
+    // The article's table said it first (its wording and year win); Wikidata
+    // years can be the eligibility year rather than the ceremony's.
+    const what = matchKey(f.category ?? f.body)
+    const known = found.some(
+      (a) =>
+        a.won === f.won &&
+        bodyKey(a.by) === bodyKey(f.body) &&
+        matchKey(a.text).includes(what) &&
+        (f.category || !f.year || a.text.includes(f.year)),
+    )
+    if (known) continue
+    found.push({
+      kind: 'award',
+      text: `${f.won ? 'Won' : 'Nominated'} · ${
+        f.category ? `${f.category}, ` : ''
+      }${f.body}${f.year ? ` ${f.year}` : ''}`,
+      by: f.body,
+      won: f.won,
+      order: MAJOR_AWARD.test(f.body) ? 0 : 2,
+    })
+  }
+  const pick = (won: boolean) =>
+    found
+      .filter((f) => f.won === won)
+      .sort((a, b) => a.order - b.order)
+      .map(({ won: _won, order: _order, ...p }): Praise => p)
+  const won = capByBody(pick(true), MAX_AWARDS)
+  return {
+    won,
+    nominated: capByBody(pick(false), MAX_AWARDS - won.length),
+  }
+}
+
+/**
+ * The first `max` awards, plus any others from the same award bodies: a
+ * night of five Grammys reads as one story, so it isn't cut at four.
+ */
+function capByBody(list: Praise[], max: number): Praise[] {
+  if (max <= 0) return []
+  const bodies = new Set(list.slice(0, max).map((p) => p.by))
+  return list.filter((p, i) => i < max || bodies.has(p.by))
+}
+
+const CERT_LEVELS: Record<string, number> = {
+  gold: 1,
+  platinum: 2,
+  diamond: 10,
+}
+/** Named first: a platinum record in the US outweighs one in a small market. */
+const BIG_MARKETS = new Set([
+  'United States',
+  'United Kingdom',
+  'Japan',
+  'Germany',
+  'France',
+])
+const REGION_NAMES: Record<string, string> = {
+  'United States': 'the US',
+  'United Kingdom': 'the UK',
+  Netherlands: 'the Netherlands',
+  'Czech Republic': 'the Czech Republic',
+  Philippines: 'the Philippines',
+}
+
+/** A sales certification from structured data (Wikidata): "France", "diamond", 2. */
+export type CertFact = {
+  /** Country name as Wikipedia's certification tables write it: "United States". */
+  region: string
+  award: 'gold' | 'platinum' | 'diamond'
+  times: number
+}
+
+/** Strongest certification per country: some articles list Gold, then Platinum later. */
+function keepBest(
+  best: Map<string, { label: string; weight: number }>,
+  region: string,
+  award: string,
+  times: number,
+) {
+  const level = CERT_LEVELS[award]
+  if (!region || !level) return
+  const label = `${times > 1 ? `${times}× ` : ''}${award[0].toUpperCase()}${award.slice(1)}`
+  const weight = level * times
+  if ((best.get(region)?.weight ?? 0) < weight)
+    best.set(region, { label, weight })
+}
+
+/**
+ * Gold and above from {{Certification Table Entry}}, combined into one line:
+ * "2× Platinum in the UK · Platinum in the US · Gold in France". `facts`
+ * (from Wikidata) only add countries the article doesn't list: where both
+ * have one, the article's is usually the more recent.
+ */
+function certifications(wikitext: string, facts: CertFact[]): Praise[] {
+  const best = new Map<string, { label: string; weight: number }>()
+  for (const tpl of templatesNamed(wikitext, /certification table entry/)) {
+    const { named } = templateParams(tpl)
+    const n = parseInt(named.get('number') ?? '', 10)
+    keepBest(
+      best,
+      plain(named.get('region') ?? ''),
+      plain(named.get('award') ?? '').toLowerCase(),
+      Number.isFinite(n) && n > 1 ? n : 1,
+    )
+  }
+  const fromArticle = new Set(best.keys())
+  for (const f of facts)
+    if (!fromArticle.has(f.region)) keepBest(best, f.region, f.award, f.times)
+  if (!best.size) return []
+  const small = (r: string) => Number(!BIG_MARKETS.has(r))
+  const certs = [...best]
+    .sort(([ra, a], [rb, b]) => small(ra) - small(rb) || b.weight - a.weight)
+    .map(([region, c]) => `${c.label} in ${REGION_NAMES[region] ?? region}`)
+  return [
+    {
+      kind: 'certification',
+      text: certs.slice(0, MAX_CERTS).join(' · '),
+      by:
+        certs.length > MAX_CERTS
+          ? `Certified Gold or higher in ${certs.length} countries`
+          : 'Sales certifications',
+    },
+  ]
+}
+
+/** {{Album chart}} codes that don't read well as they are. */
+const CHART_NAMES: Record<string, string> = {
+  UK2: 'UK Albums',
+  UKIndependent: 'UK Independent Albums',
+  UKDigital: 'UK Album Downloads',
+  UKCompilation: 'UK Compilations',
+  Billboard200: 'Billboard 200',
+  BillboardIndependent: 'US Independent Albums',
+  BillboardRock: 'US Top Rock Albums',
+  BillboardAlternative: 'US Alternative Albums',
+  BillboardRandBHipHop: 'US R&B/Hip-Hop Albums',
+  BillboardDanceElectronic: 'US Dance/Electronic Albums',
+  BillboardCanada: 'Canada',
+  France4: 'France',
+  Germany4: 'Germany',
+  Oricon: 'Japan',
+  Flanders: 'Belgium (Flanders)',
+  Wallonia: 'Belgium (Wallonia)',
+  Czech: 'Czech Republic',
+  Korea: 'South Korea',
+  NewZealand: 'New Zealand',
+}
+/** The headline charts, named first among equal peaks. */
+const MAIN_CHART = /^(UK Albums|(US )?Billboard 200)\b/
+
+/**
+ * Top-ten peaks from the weekly charts, one line per position:
+ * "No. 1 · UK Albums, Billboard 200, France and 12 more".
+ */
+function charts(wikitext: string): Praise[] {
+  const body =
+    section(wikitext, /^weekly charts?$/i) ??
+    // Without a Weekly subsection, stop before any year-end tables.
+    section(
+      wikitext,
+      /^(weekly )?charts?( performance| and certifications)?$/i,
+    )?.split(/^=+\s*(?:year|decade|all-time)/im)[0]
+  if (!body) return []
+  const peaks: Array<{ name: string; peak: number }> = []
+  for (const tpl of templatesNamed(body, /album chart/)) {
+    const [code, peak] = templateParams(tpl).positional
+    if (code)
+      peaks.push({
+        name: CHART_NAMES[code] ?? code,
+        peak: parseInt(peak ?? '', 10),
+      })
+  }
+  // Hand-written rows: "! scope=row | Japanese Albums (Oricon) || 3".
+  for (const row of tables(body).flatMap(tableRows)) {
+    const keys = Object.keys(row)
+    const name = keys.find((k) => k.startsWith('chart'))
+    const peak = keys.find((k) => /peak|position/.test(k))
+    if (name && peak && row[name])
+      peaks.push({ name: row[name], peak: parseInt(row[peak], 10) })
+  }
+  const byPeak = new Map<number, string[]>()
+  peaks
+    .filter((p) => Number.isFinite(p.peak) && p.peak >= 1 && p.peak <= TOP_PEAK)
+    .sort(
+      (a, b) =>
+        a.peak - b.peak ||
+        Number(!MAIN_CHART.test(a.name)) - Number(!MAIN_CHART.test(b.name)),
+    )
+    .forEach((p) => {
+      const names = byPeak.get(p.peak) ?? []
+      if (!names.includes(p.name)) names.push(p.name)
+      byPeak.set(p.peak, names)
+    })
+  return [...byPeak].slice(0, MAX_CHART_LINES).map(([peak, names]): Praise => {
+    const more = names.length - MAX_CHARTS
+    return {
+      kind: 'chart',
+      text: `No. ${peak} · ${names.slice(0, MAX_CHARTS).join(', ')}${
+        more > 0 ? ` and ${more} more` : ''
+      }`,
+      by: 'Weekly album charts',
+    }
+  })
+}
+
+/** Runs a parser, turning any surprise in the wikitext into `fallback`. */
+function safe<T>(parse: () => T, fallback: T): T {
+  try {
+    return parse()
+  } catch {
+    return fallback
+  }
+}
+
+/**
+ * The album's highest praise, strongest first. Awards and certifications
+ * from Wikidata join the article's own; pass '' as the wikitext when there's
+ * no article and only those are known.
+ */
+export function praiseFrom(
+  wikitext: string,
+  facts: { awards?: AwardFact[]; certifications?: CertFact[] } = {},
+): Praise[] {
   const w = stripRefs(wikitext)
-  const high = ratings(w)
+  const high = safe(() => ratings(w), [])
     .filter((r) => r.score.value >= HIGH)
     .sort((a, b) => b.score.value - a.score.value)
-  const q = quotes(w, high)
+  const q = safe(() => quotes(w, high), [])
   const quotedBy = new Set(q.map((p) => p.by))
+  const award = safe(() => awards(w, facts.awards ?? []), {
+    won: [],
+    nominated: [],
+  })
   return [
-    ...accolades(w),
+    ...award.won,
+    ...safe(() => accolades(w), []),
+    ...award.nominated,
+    ...safe(() => certifications(w, facts.certifications ?? []), []),
+    ...safe(() => charts(w), []),
     ...q,
     ...high
       .filter((r) => !quotedBy.has(r.by))
@@ -297,4 +725,100 @@ export function praiseFrom(wikitext: string): Praise[] {
         by: r.by,
       })),
   ]
+}
+
+/**
+ * A community average (out of 5) as a rating, when it's high and enough
+ * people voted: "4.6/5" by "1,203 Discogs ratings".
+ */
+export function communityRating(
+  source: string,
+  average: number | undefined,
+  count: number | undefined,
+): Praise | null {
+  if (
+    typeof average !== 'number' ||
+    typeof count !== 'number' ||
+    !Number.isFinite(average) ||
+    average < HIGH_COMMUNITY ||
+    count < MIN_COMMUNITY_VOTES
+  )
+    return null
+  return {
+    kind: 'rating',
+    text: `${average.toFixed(1)}/5`,
+    by: `${count.toLocaleString('en-US')} ${source} ratings`,
+  }
+}
+
+// ---------- infobox facts ----------
+
+/** {{hlist|a|b}}, {{plainlist|* a * b}}…: list templates to one item per line. */
+const listTemplates = (tpl: string): string | null =>
+  /^\{\{\s*(hlist|flatlist|flat list|plainlist|plain list|unbulleted list|ubl|ubil)\s*[|}]/i.test(
+    tpl,
+  )
+    ? templateParams(tpl).positional.join('\n')
+    : inlineTemplates(tpl)
+
+/**
+ * An infobox value as separate items: bullets, line breaks and list
+ * templates all split. "(Brooklyn)" on a line of its own joins the item above.
+ */
+function listItems(raw: string | undefined): string[] {
+  if (!raw) return []
+  const out: string[] = []
+  for (const line of replaceTemplates(raw, listTemplates).split(
+    /\n|<br\s*\/?>/i,
+  )) {
+    const item = plain(line.replace(/<[^>]+>/g, '').replace(/^\s*\*+/, ''))
+      .replace(/[;,]$/, '')
+      .trim()
+    if (!item) continue
+    if (/^\(.*\)$/.test(item) && out.length) out[out.length - 1] += ` ${item}`
+    else if (!out.includes(item)) out.push(item)
+  }
+  return out
+}
+
+/** "{{Duration|m=60|s=08}}" or "44:28" to "60:08" / "44:28". */
+function duration(raw: string | undefined): string | null {
+  if (!raw) return null
+  const tpl = templatesNamed(raw, /duration/)[0]
+  if (tpl) {
+    const { positional, named } = templateParams(tpl)
+    const [h, m, s] = named.size
+      ? [named.get('h'), named.get('m'), named.get('s')]
+      : positional.length >= 3
+        ? positional
+        : [undefined, ...positional]
+    const pad = (n: string | undefined) => (n ?? '0').trim().padStart(2, '0')
+    if (m || s)
+      return h
+        ? `${Number(h)}:${pad(m)}:${pad(s)}`
+        : `${Number(m ?? 0)}:${pad(s)}`
+  }
+  return /\d+:\d{2}(:\d{2})?/.exec(plain(replaceTemplates(raw)))?.[0] ?? null
+}
+
+/** Studio, recording dates, producers and running time from the infobox. */
+export function albumFactsFrom(wikitext: string): AlbumFacts | null {
+  return safe(() => {
+    const w = stripRefs(wikitext)
+    const at = w.search(/\{\{\s*infobox album/i)
+    if (at < 0) return null
+    const { named } = templateParams(templateAt(w, at))
+    const facts: AlbumFacts = {
+      recorded: listItems(named.get('recorded')),
+      studios: listItems(named.get('studio')),
+      producers: listItems(named.get('producer')),
+      length: duration(named.get('length')),
+    }
+    return facts.recorded.length ||
+      facts.studios.length ||
+      facts.producers.length ||
+      facts.length
+      ? facts
+      : null
+  }, null)
 }

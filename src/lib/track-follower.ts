@@ -18,7 +18,13 @@ export type Side = { name: string; tracks: TimedTrack[]; length: number }
 /** Where the track lengths came from, least trustworthy last. */
 export type TimingSource = 'discogs' | 'spotify' | 'itunes' | 'estimated'
 
-export type Sides = { sides: Side[]; timing: TimingSource }
+export type Sides = {
+  sides: Side[]
+  /** Where most times came from; 'estimated' only when none were known. */
+  timing: TimingSource
+  /** Tracks whose length is a guess (a share of the remaining runtime). */
+  guessed: number
+}
 
 /** Seconds from a Discogs duration like "4:15" or "1:02:03"; 0 if missing. */
 export function trackSeconds(d: string | null | undefined): number {
@@ -37,38 +43,66 @@ function sideLetter(position: string): string | null {
 const DEFAULT_RUNTIME_SEC = 45 * 60
 
 /**
- * Groups the tracklist into sides and times every track. Discogs times win
- * when all tracks have one; otherwise the streaming album's track lengths
- * (same order, extra digital tracks ignored); otherwise the runtime is split
- * evenly.
+ * Groups the tracklist into sides and times every track, track by track:
+ * the Discogs time when it has one, else the streaming length found for that
+ * position (matched by song title on the server), else an even share of
+ * whatever runtime is left.
  */
 export function buildSides(
-  tracklist: Array<{ position: string; title: string; duration: string }>,
+  tracklist: Array<{
+    position: string
+    title: string
+    duration: string
+    /** Set when the sync filled `duration` from streaming. */
+    source?: 'spotify' | 'itunes'
+  }>,
   opts: {
     totalSec?: number | null
-    streaming?: { lengths: number[]; source: 'spotify' | 'itunes' } | null
+    streaming?: {
+      lengths: Array<{ position: string; sec: number }>
+      source: 'spotify' | 'itunes'
+    } | null
   } = {},
 ): Sides {
-  if (!tracklist.length) return { sides: [], timing: 'estimated' }
-  const discogs = tracklist.map((t) => trackSeconds(t.duration))
-  let lengths: number[]
-  let timing: TimingSource
-  if (discogs.every((s) => s > 0)) {
-    lengths = discogs
-    timing = 'discogs'
-  } else if (
-    opts.streaming &&
-    opts.streaming.lengths.length >= tracklist.length
-  ) {
-    lengths = opts.streaming.lengths.slice(0, tracklist.length)
-    timing = opts.streaming.source
-  } else {
-    const each = Math.round(
-      (opts.totalSec || DEFAULT_RUNTIME_SEC) / tracklist.length,
-    )
-    lengths = tracklist.map(() => each)
-    timing = 'estimated'
-  }
+  if (!tracklist.length) return { sides: [], timing: 'estimated', guessed: 0 }
+  const discogs = tracklist.map((t) =>
+    t.source ? 0 : trackSeconds(t.duration),
+  )
+  // Lengths the sync already saved, then the liner notes' (for records
+  // synced before it did).
+  const streamed = new Map(
+    (opts.streaming?.lengths ?? []).map((l) => [l.position, l.sec]),
+  )
+  for (const t of tracklist)
+    if (t.source && trackSeconds(t.duration))
+      streamed.set(t.position, trackSeconds(t.duration))
+  const streamingSource =
+    tracklist.find((t) => t.source)?.source ?? opts.streaming?.source
+  const known = tracklist.map(
+    (t, i) => discogs[i] || streamed.get(t.position) || 0,
+  )
+  const guessed = known.filter((s) => !s).length
+  const knownSum = known.reduce((a, b) => a + b, 0)
+  const runtime = opts.totalSec || DEFAULT_RUNTIME_SEC
+  // Unknown tracks share what's left of the runtime, or, when the known ones
+  // already fill it, get the average known length.
+  const share = !guessed
+    ? 0
+    : Math.round(
+        runtime > knownSum
+          ? (runtime - knownSum) / guessed
+          : knownSum / (tracklist.length - guessed),
+      )
+  const lengths = known.map((s) => s || share)
+  const usedStreaming = tracklist.some(
+    (t, i) => !discogs[i] && streamed.has(t.position),
+  )
+  const timing: TimingSource =
+    guessed === tracklist.length
+      ? 'estimated'
+      : usedStreaming && streamingSource
+        ? streamingSource
+        : 'discogs'
 
   const sides: Side[] = []
   tracklist.forEach((t, index) => {
@@ -88,7 +122,7 @@ export function buildSides(
     })
     side.length += lengths[index]
   })
-  return { sides, timing }
+  return { sides, timing, guessed }
 }
 
 /**

@@ -214,6 +214,8 @@ export type DiscogsRelease = {
     title: string
     duration: string
     type_: string
+    /** Split records and compilations credit an artist per track. */
+    artists?: DiscogsArtistRef[]
   }>
 }
 

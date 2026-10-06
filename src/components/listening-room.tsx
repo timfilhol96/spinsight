@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   ExternalLink,
   Maximize2,
@@ -76,7 +76,7 @@ export function ListeningRoom({
     staleTime: Infinity,
     retry: 1,
   })
-  const { sides, timing } = useMemo(
+  const { sides, timing, guessed } = useMemo(
     () =>
       buildSides(record.tracklist ?? [], {
         totalSec: record.durationSec,
@@ -180,7 +180,8 @@ export function ListeningRoom({
           <TrackList
             follower={follower}
             timing={timing}
-            streamingAlbum={notes.data?.streaming?.album}
+            guessed={guessed}
+            streamingAlbum={notes.data?.streaming?.album ?? undefined}
           />
         </aside>
 
@@ -432,8 +433,8 @@ function NowCard({ follower }: { follower: Follower }) {
 
 const TIMING_NOTE: Record<TimingSource, string> = {
   discogs: 'Track times from Discogs.',
-  spotify: 'Discogs has no track times, so these come from Spotify',
-  itunes: 'Discogs has no track times, so these come from Apple Music',
+  spotify: 'Track times Discogs is missing come from Spotify',
+  itunes: 'Track times Discogs is missing come from Apple Music',
   estimated:
     'No track times anywhere, so the runtime is split evenly: tap the song that is playing to keep in step.',
 }
@@ -441,10 +442,13 @@ const TIMING_NOTE: Record<TimingSource, string> = {
 function TrackList({
   follower,
   timing,
+  guessed,
   streamingAlbum,
 }: {
   follower: Follower
   timing: TimingSource
+  /** Tracks timed by guesswork, when the others are known. */
+  guessed: number
   streamingAlbum?: string
 }) {
   const p = follower.position
@@ -499,8 +503,13 @@ function TrackList({
       })}
       <p className="px-2 pt-1 pb-1.5 text-[11px] text-muted-foreground">
         {TIMING_NOTE[timing]}
-        {streamingAlbum && timing !== 'discogs' && timing !== 'estimated'
-          ? ` ("${streamingAlbum}").`
+        {timing === 'spotify' || timing === 'itunes'
+          ? streamingAlbum
+            ? ` ("${streamingAlbum}").`
+            : ', song by song.'
+          : ''}
+        {timing !== 'estimated' && guessed > 0
+          ? ` ${guessed === 1 ? 'One track’s length is' : `${guessed} tracks’ lengths are`} a guess.`
           : ''}{' '}
         Tap a track to say where you are.
       </p>
@@ -564,7 +573,8 @@ function WikiBlock({ page }: { page: WikiPage }) {
         rel="noreferrer"
         className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
       >
-        Wikipedia: {page.title} <ExternalLink className="size-3" />
+        Wikipedia{page.lang !== 'en' && ` (${page.lang.toUpperCase()})`}:{' '}
+        {page.title} <ExternalLink className="size-3" />
       </a>
     </>
   )
@@ -627,9 +637,26 @@ function AlbumSection({
   record: CollectionRecord
   notes: LinerNotes
 }) {
-  if (!notes.wiki.album && !notes.notes) return null
+  if (!notes.wiki.album && !notes.notes && !notes.albumFacts) return null
+  const facts = notes.albumFacts
+  // Laid out like the credits: a label over each value.
+  const factGroups: CreditGroup[] = facts
+    ? [
+        { role: 'Recorded', names: facts.recorded },
+        {
+          role: facts.studios.length > 1 ? 'Studios' : 'Studio',
+          names: facts.studios,
+        },
+        {
+          role: facts.producers.length > 1 ? 'Producers' : 'Producer',
+          names: facts.producers,
+        },
+        { role: 'Length', names: facts.length ? [facts.length] : [] },
+      ].filter((g) => g.names.length)
+    : []
   return (
     <Section kicker="The record" title={record.title}>
+      {factGroups.length > 0 && <Credits groups={factGroups} />}
       {notes.wiki.album && <WikiBlock page={notes.wiki.album} />}
       {notes.notes && (
         <div className="rounded-xl border bg-card/60 p-4">
@@ -897,6 +924,90 @@ function NotesSkeleton() {
 /** How long each piece of praise stays up. */
 const PRAISE_MS = 20_000
 
+/** What each kind of praise is, said above it so it reads from the sofa. */
+const PRAISE_LABEL: Record<Praise['kind'], string | null> = {
+  award: 'Awards',
+  accolade: "Critics' lists",
+  certification: 'Certified',
+  chart: 'Chart peak',
+  quote: null,
+  rating: 'Rated',
+}
+
+/**
+ * One piece of praise for stand mode. Quotes are set as quotes; everything
+ * else is a fact, set upright with each " · " part on its own line.
+ */
+function PraiseFigure({ praise }: { praise: Praise }) {
+  if (praise.kind === 'quote')
+    return (
+      <figure>
+        <blockquote className="font-display text-2xl leading-snug text-balance italic md:text-3xl">
+          “{praise.text}”
+        </blockquote>
+        <figcaption className="mt-3 text-sm text-muted-foreground">
+          — {praise.by}
+          {praise.score ? ` · ${praise.score}` : ''}
+        </figcaption>
+      </figure>
+    )
+  const label = PRAISE_LABEL[praise.kind]
+  return (
+    <figure>
+      {label && <p className="kicker mb-2">{label}</p>}
+      <div
+        className={cn(
+          'font-display leading-snug font-semibold text-balance',
+          praise.kind === 'rating'
+            ? 'text-4xl md:text-6xl'
+            : 'text-2xl md:text-3xl',
+        )}
+      >
+        {praise.text.split(' · ').map((line, i) => (
+          <p key={i}>{line}</p>
+        ))}
+      </div>
+      {/* An award's body is already in its text. */}
+      {praise.kind !== 'award' && (
+        <figcaption className="mt-3 text-sm text-muted-foreground">
+          {praise.kind === 'accolade' || praise.kind === 'rating' ? '— ' : ''}
+          {praise.by}
+        </figcaption>
+      )}
+    </figure>
+  )
+}
+
+/** Smallest the stand-mode text may shrink to fit: still readable on a phone. */
+const MIN_FIT = 0.5
+
+/**
+ * Shrinks `inner` (via CSS zoom) until it fits in `outer`. On a phone a long
+ * accolade would otherwise push the record's name off the top of the screen
+ * and its own end off the bottom. Starts again at full size whenever
+ * `content` or the window size changes.
+ */
+function useFitScale(
+  outer: React.RefObject<HTMLElement | null>,
+  content: unknown[],
+): number {
+  const [scale, setScale] = useState(1)
+  const [size, setSize] = useState(0)
+  useEffect(() => {
+    const onResize = () => setSize((n) => n + 1)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  useLayoutEffect(() => setScale(1), [size, ...content])
+  // Runs after each render, before paint: steps down until nothing overflows.
+  useLayoutEffect(() => {
+    const el = outer.current
+    if (el && el.scrollHeight > el.clientHeight + 1 && scale > MIN_FIT)
+      setScale((s) => Math.max(MIN_FIT, Math.round((s - 0.05) * 100) / 100))
+  })
+  return scale
+}
+
 function useWakeLock() {
   useEffect(() => {
     if (!('wakeLock' in navigator)) return
@@ -953,6 +1064,12 @@ function StandMode({
     return () => clearInterval(id)
   }, [praiseIdx])
   const shown = praise.length ? praise[praiseIdx % praise.length] : null
+  const textBox = useRef<HTMLDivElement>(null)
+  const fit = useFitScale(textBox, [
+    shown,
+    p?.state,
+    p?.state === 'playing' ? p.track.title : null,
+  ])
 
   function exit() {
     if (document.fullscreenElement)
@@ -988,7 +1105,7 @@ function StandMode({
         className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,color-mix(in_oklab,var(--record-1)_30%,transparent),transparent_65%),radial-gradient(circle_at_80%_90%,color-mix(in_oklab,var(--record-2)_20%,transparent),transparent_60%)]"
       />
       <div className="relative flex h-full flex-col gap-6 p-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] landscape:flex-row landscape:items-center landscape:gap-12 landscape:px-12 md:p-12">
-        <div className="mx-auto w-[min(70vw,42vh)] shrink-0 landscape:mx-0 landscape:w-[min(42vw,78vh)]">
+        <div className="mx-auto w-[min(64vw,36vh)] shrink-0 landscape:mx-0 landscape:w-[min(42vw,78vh)]">
           <FlippingDisc
             record={record}
             spinning={p?.state === 'playing'}
@@ -997,81 +1114,81 @@ function StandMode({
           />
         </div>
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-center gap-10">
-          <div>
-            <p className="kicker">
-              {record.artist} · {record.title}
-            </p>
-            {p?.state === 'playing' ? (
-              <>
-                <p className="mt-2 font-display text-4xl leading-[1.05] font-semibold text-balance md:text-6xl">
-                  {p.track.title}
-                </p>
-                <div className="mt-4 flex max-w-lg items-center gap-3">
-                  <span className="font-mono text-sm text-muted-foreground">
-                    {p.track.position}
-                  </span>
-                  <div className="h-1 flex-1 overflow-hidden rounded-full bg-foreground/10">
-                    <div
-                      className="h-full rounded-full bg-record-1 transition-[width] duration-1000 ease-linear"
-                      style={{
-                        width: `${Math.min(100, (p.intoTrack / p.track.sec) * 100)}%`,
-                      }}
-                    />
+        <div
+          ref={textBox}
+          className="flex min-h-0 min-w-0 flex-1 flex-col justify-[safe_center] overflow-hidden"
+        >
+          <div
+            className="flex flex-col gap-6 md:gap-10"
+            style={fit < 1 ? { zoom: fit } : undefined}
+          >
+            <div>
+              <p className="kicker">
+                {record.artist} · {record.title}
+              </p>
+              {p?.state === 'playing' ? (
+                <>
+                  <p className="mt-2 font-display text-4xl leading-[1.05] font-semibold text-balance md:text-6xl">
+                    {p.track.title}
+                  </p>
+                  <div className="mt-4 flex max-w-lg items-center gap-3">
+                    <span className="font-mono text-sm text-muted-foreground">
+                      {p.track.position}
+                    </span>
+                    <div className="h-1 flex-1 overflow-hidden rounded-full bg-foreground/10">
+                      <div
+                        className="h-full rounded-full bg-record-1 transition-[width] duration-1000 ease-linear"
+                        style={{
+                          width: `${Math.min(100, (p.intoTrack / p.track.sec) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                      {mmss(p.track.sec - p.intoTrack)} left
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={follower.next}
+                      aria-label="Skip to the next song"
+                      title="Skip to the next song"
+                    >
+                      <SkipForward />
+                    </Button>
                   </div>
-                  <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                    {mmss(p.track.sec - p.intoTrack)} left
-                  </span>
+                </>
+              ) : p?.state === 'flip' ? (
+                <div className="mt-2">
+                  <p className="font-display text-4xl font-semibold md:text-6xl">
+                    Flip to side {p.next.name}
+                  </p>
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={follower.next}
-                    aria-label="Skip to the next song"
-                    title="Skip to the next song"
+                    size="lg"
+                    className="mt-4 bg-record-1 text-record-ink hover:bg-record-1/90"
+                    onClick={follower.flip}
                   >
-                    <SkipForward />
+                    <RefreshCw /> Flipped
                   </Button>
                 </div>
-              </>
-            ) : p?.state === 'flip' ? (
-              <div className="mt-2">
-                <p className="font-display text-4xl font-semibold md:text-6xl">
-                  Flip to side {p.next.name}
+              ) : (
+                <p className="mt-2 font-display text-4xl font-semibold md:text-6xl">
+                  {p?.state === 'finished' ? 'Needle up' : record.title}
                 </p>
-                <Button
-                  size="lg"
-                  className="mt-4 bg-record-1 text-record-ink hover:bg-record-1/90"
-                  onClick={follower.flip}
-                >
-                  <RefreshCw /> Flipped
-                </Button>
-              </div>
-            ) : (
-              <p className="mt-2 font-display text-4xl font-semibold md:text-6xl">
-                {p?.state === 'finished' ? 'Needle up' : record.title}
-              </p>
+              )}
+            </div>
+
+            {shown && (
+              <button
+                type="button"
+                key={praiseIdx}
+                onClick={() => setPraiseIdx((i) => i + 1)}
+                className="rise-in max-w-2xl text-left"
+                title={praise.length > 1 ? 'Next' : undefined}
+              >
+                <PraiseFigure praise={shown} />
+              </button>
             )}
           </div>
-
-          {shown && (
-            <button
-              type="button"
-              key={praiseIdx}
-              onClick={() => setPraiseIdx((i) => i + 1)}
-              className="rise-in max-w-2xl text-left"
-              title={praise.length > 1 ? 'Next' : undefined}
-            >
-              <figure>
-                <blockquote className="font-display text-2xl leading-snug text-balance italic md:text-3xl">
-                  “{shown.text}”
-                </blockquote>
-                <figcaption className="mt-3 text-sm text-muted-foreground">
-                  — {shown.by}
-                  {shown.score ? ` · ${shown.score}` : ''}
-                </figcaption>
-              </figure>
-            </button>
-          )}
         </div>
       </div>
 

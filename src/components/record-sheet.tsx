@@ -234,12 +234,29 @@ function RecordDetail({ record }: { record: CollectionRecord }) {
                     {t.position}
                   </span>
                   <span className="flex-1">{t.title}</span>
-                  <span className="font-mono text-xs leading-5 text-muted-foreground">
+                  <span
+                    className="font-mono text-xs leading-5 text-muted-foreground"
+                    title={
+                      t.source
+                        ? `Not on Discogs: length from ${t.source === 'itunes' ? 'Apple Music' : 'Spotify'}`
+                        : undefined
+                    }
+                  >
                     {t.duration}
+                    {t.source && <span aria-hidden>*</span>}
                   </span>
                 </li>
               ))}
             </ol>
+            {record.tracklist.some((t) => t.source) && (
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                * Discogs has no time for these tracks; their length is from{' '}
+                {record.tracklist.find((t) => t.source)?.source === 'itunes'
+                  ? 'Apple Music'
+                  : 'Spotify'}
+                .
+              </p>
+            )}
           </div>
         )}
 

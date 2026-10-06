@@ -11,7 +11,11 @@ import type {
   DiscogsWantsPage,
   OAuthToken,
 } from '#/lib/discogs.server'
-import { albumDurationSec, findArtwork } from '#/lib/artwork.server'
+import {
+  albumDurationSec,
+  findArtwork,
+  missingTrackLengths,
+} from '#/lib/artwork.server'
 import { editionTokens } from '#/lib/editions'
 import { env } from '#/lib/env.server'
 import { findSpotifyArtist } from '#/lib/spotify.server'
@@ -232,6 +236,14 @@ async function syncWantlist(user: UserRow) {
   }
 }
 
+/** 243 → "4:03", as Discogs writes track times. */
+function formatTrackTime(sec: number): string {
+  const h = Math.floor(sec / 3600)
+  const m = Math.floor((sec % 3600) / 60)
+  const ss = String(sec % 60).padStart(2, '0')
+  return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
+}
+
 function parseDuration(d: string | undefined): number {
   if (!d) return 0
   const parts = d.split(':').map(Number)
@@ -313,6 +325,8 @@ export async function enrichBatch(
     let duration: { sec: number; source: string } | null = discogsDuration
       ? { sec: discogsDuration, source: 'discogs' }
       : null
+    // Lengths for the tracks Discogs has no time for, by position.
+    let streamed: Awaited<ReturnType<typeof missingTrackLengths>> = null
 
     // Search under the artist's real name, not a Discogs alias ("Jfff Mills").
     const searchArtist = cleanArtistName(rel.artists[0]?.name ?? '')
@@ -337,8 +351,34 @@ export async function enrichBatch(
         album_artwork_thumb: found.album?.thumb ?? null,
         artwork_checked_at: new Date().toISOString(),
       }
-      // No Discogs track times: use the digital album's, counting only as
-      // many tracks as the vinyl has.
+      // Tracks without a Discogs time take their streaming length, matched
+      // by song title (then searched song by song), so every track on the
+      // card has one.
+      if (!duration && searchArtist) {
+        streamed = await missingTrackLengths(
+          searchArtist,
+          found.album,
+          tracks.map((t) => ({
+            ...t,
+            artist: t.artists?.[0]
+              ? cleanArtistName(t.artists[0].name)
+              : undefined,
+          })),
+        )
+        const byPosition = new Map(
+          streamed?.lengths.map((l) => [l.position, l.sec]),
+        )
+        const secs = tracks.map(
+          (t) => parseDuration(t.duration) || byPosition.get(t.position) || 0,
+        )
+        if (streamed && secs.every((n) => n > 0))
+          duration = {
+            sec: secs.reduce((a, b) => a + b, 0),
+            source: streamed.source,
+          }
+      }
+      // Some tracks still unknown: the digital album's length, counting only
+      // as many tracks as the vinyl has.
       if (!duration && found.album) {
         const sec = await albumDurationSec(
           found.album,
@@ -361,11 +401,19 @@ export async function enrichBatch(
         lowest_price: full.lowest_price ?? null,
         price_currency: 'USD',
         num_for_sale: full.num_for_sale ?? null,
-        tracklist: tracks.map((t) => ({
-          position: t.position,
-          title: t.title,
-          duration: t.duration,
-        })),
+        tracklist: tracks.map((t) => {
+          const sec =
+            !parseDuration(t.duration) &&
+            streamed?.lengths.find((l) => l.position === t.position)?.sec
+          return sec
+            ? {
+                position: t.position,
+                title: t.title,
+                duration: formatTrackTime(sec),
+                source: streamed!.source,
+              }
+            : { position: t.position, title: t.title, duration: t.duration }
+        }),
         duration_sec: duration?.sec ?? null,
         duration_source: duration?.source ?? null,
         // A master's year is the first release; fall back to this pressing.

@@ -6,8 +6,9 @@ import type { VinylLook } from '#/lib/vinyl-color'
  * Bump when enrichment starts filling new fields; rows with an older version
  * are re-fetched on the next run. v2: original year, USD prices, artwork.
  * v3: edition-aware artwork. v4: streaming runtime when Discogs has none.
+ * v5: each track Discogs has no time for gets its streaming length.
  */
-export const DETAILS_VERSION = 4
+export const DETAILS_VERSION = 5
 
 /** Runtime assumed when a record's length is unknown (a typical LP). */
 export const DEFAULT_RUNTIME_SEC = 45 * 60
@@ -59,7 +60,14 @@ export type CollectionRecord = {
   /** Lowest current Discogs listing. */
   lowestPrice: Money | null
   numForSale: number | null
-  tracklist: Array<{ position: string; title: string; duration: string }> | null
+  tracklist: Array<{
+    position: string
+    title: string
+    /** "4:15". Filled from streaming when Discogs has none (see `source`). */
+    duration: string
+    /** Set when `duration` came from streaming rather than Discogs. */
+    source?: 'spotify' | 'itunes'
+  }> | null
   durationSec: number | null
   /** 'discogs' (tracklist) or the streaming service the runtime came from. */
   durationSource: 'discogs' | 'spotify' | 'itunes' | null

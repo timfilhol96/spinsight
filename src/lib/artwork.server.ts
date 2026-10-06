@@ -1,5 +1,6 @@
 import { editionTokens } from '#/lib/editions'
 import { spotifyAppToken } from '#/lib/spotify.server'
+import { trackSeconds } from '#/lib/track-follower'
 
 // Clean album artwork. A Discogs release's primary image is often a photo of
 // the sleeve and disc, so we look the album up on Spotify first, then Apple
@@ -186,11 +187,12 @@ export async function findArtwork(
   }
 }
 
-/** Track lengths of a streaming album in seconds, in album order. */
-export async function albumTrackLengths(
+export type StreamedTrack = { name: string; sec: number }
+
+/** A streaming album's tracks, in album order, with lengths in seconds. */
+export async function albumTracks(
   art: Pick<Artwork, 'id' | 'source'>,
-): Promise<number[]> {
-  let lengthsMs: number[] = []
+): Promise<StreamedTrack[]> {
   if (art.source === 'spotify') {
     const token = await spotifyAppToken()
     if (!token) return []
@@ -200,32 +202,196 @@ export async function albumTrackLengths(
     )
     if (!res.ok) return []
     const data = (await res.json()) as {
-      items?: Array<{ duration_ms?: number }>
+      items?: Array<{ name?: string; duration_ms?: number }>
     }
-    lengthsMs = (data.items ?? []).map((t) => t.duration_ms ?? 0)
-  } else {
-    const res = await fetch(
-      `https://itunes.apple.com/lookup?id=${encodeURIComponent(art.id)}&entity=song`,
+    return (data.items ?? []).map((t) => ({
+      name: t.name ?? '',
+      sec: Math.round((t.duration_ms ?? 0) / 1000),
+    }))
+  }
+  const res = await fetch(
+    `https://itunes.apple.com/lookup?id=${encodeURIComponent(art.id)}&entity=song`,
+  )
+  if (!res.ok) return []
+  const data = (await res.json()) as {
+    results?: Array<{
+      wrapperType: string
+      trackName?: string
+      discNumber?: number
+      trackNumber?: number
+      trackTimeMillis?: number
+    }>
+  }
+  return (data.results ?? [])
+    .filter((r) => r.wrapperType === 'track')
+    .sort(
+      (a, b) =>
+        (a.discNumber ?? 1) - (b.discNumber ?? 1) ||
+        (a.trackNumber ?? 0) - (b.trackNumber ?? 0),
     )
-    if (!res.ok) return []
-    const data = (await res.json()) as {
-      results?: Array<{
-        wrapperType: string
-        discNumber?: number
-        trackNumber?: number
-        trackTimeMillis?: number
+    .map((t) => ({
+      name: t.trackName ?? '',
+      sec: Math.round((t.trackTimeMillis ?? 0) / 1000),
+    }))
+}
+
+/** Track lengths of a streaming album in seconds, in album order. */
+export async function albumTrackLengths(
+  art: Pick<Artwork, 'id' | 'source'>,
+): Promise<number[]> {
+  return (await albumTracks(art)).map((t) => t.sec)
+}
+
+/**
+ * Words in a "(…)" or " - …" tag that make it a different recording, with a
+ * different length: an instrumental isn't the album take. "(2011 Remaster)"
+ * or "(Mono)" are the same recording and don't count.
+ */
+const RECORDING_TAGS: Array<[RegExp, string]> = [
+  [/\binstrumental\b/i, 'instrumental'],
+  [/\bacoustic\b/i, 'acoustic'],
+  [/\bdemo\b/i, 'demo'],
+  [/\blive\b/i, 'live'],
+  [/\bremix\b/i, 'remix'],
+  [/\balternat(e|ive)\b/i, 'alternate'],
+  [/\b(radio |single )?edit\b/i, 'edit'],
+  // Only when nothing more specific is named (see songKey).
+  [/\bversion\b/i, 'version'],
+]
+
+/**
+ * A song title's comparison key. Discogs credits guests in the title
+ * ("Myself In The Way Feat. Brendan Yates") and Spotify tags reissues on the
+ * end ("Song - 2011 Remaster"); neither changes the song. A tag naming
+ * another recording ("(Instrumental)", "- Live at …") is kept, so a deluxe
+ * edition's instrumental doesn't get the album take's length.
+ */
+export function songKey(title: string): string {
+  const name = title.replace(/\s+(feat\.?|ft\.?|featuring)\s.*$/i, '')
+  const tags = [
+    ...[...name.matchAll(/[([]([^)\]]*)[)\]]/g)].map((m) => m[1]),
+    /\s+-\s+(.+)$/.exec(name)?.[1] ?? '',
+  ]
+  const found = RECORDING_TAGS.filter(([re]) =>
+    tags.some((t) => re.test(t)),
+  ).map(([, tag]) => tag)
+  // "Alternate Version" is just alternate; "Juno Version" stays a version.
+  const recording =
+    found.length > 1 ? found.filter((t) => t !== 'version') : found
+  const base = matchKey(
+    name.replace(
+      /\s+-\s+[^-]*\b(remaster(ed)?|version|mix|edit|mono|stereo|live|demo|bonus|instrumental|acoustic|alternat(e|ive)|remix)\b[^-]*$/i,
+      '',
+    ),
+  )
+  return recording.length ? `${base}~${recording.join('~')}` : base
+}
+
+/**
+ * One song's length, found by title and artist on Spotify: for tracks the
+ * album lookup couldn't place (a split EP, a vinyl-only bonus track). Null
+ * when there's no clear match.
+ */
+export async function spotifyTrackSeconds(
+  artist: string,
+  title: string,
+): Promise<number | null> {
+  const token = await spotifyAppToken()
+  if (!token) return null
+  const res = await fetch(
+    `https://api.spotify.com/v1/search?type=track&limit=10&q=${encodeURIComponent(
+      `track:${searchTitle(title.replace(/\s+(feat\.?|ft\.?|featuring)\s.*$/i, ''))} artist:${artist}`,
+    )}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+  if (!res.ok) return null
+  const data = (await res.json()) as {
+    tracks?: {
+      items?: Array<{
+        name: string
+        duration_ms: number
+        artists: Array<{ name: string }>
       }>
     }
-    lengthsMs = (data.results ?? [])
-      .filter((r) => r.wrapperType === 'track')
-      .sort(
-        (a, b) =>
-          (a.discNumber ?? 1) - (b.discNumber ?? 1) ||
-          (a.trackNumber ?? 0) - (b.trackNumber ?? 0),
-      )
-      .map((t) => t.trackTimeMillis ?? 0)
   }
-  return lengthsMs.map((ms) => Math.round(ms / 1000))
+  const want = songKey(title)
+  const hit = (data.tracks?.items ?? []).find(
+    (t) =>
+      songKey(t.name) === want &&
+      t.artists.some((a) => sameArtist(artist, a.name)),
+  )
+  return hit ? Math.round(hit.duration_ms / 1000) : null
+}
+
+/** Songs looked up one by one at most: a long box set shouldn't fire dozens of searches. */
+const MAX_SONG_SEARCHES = 24
+
+/**
+ * Lengths for the vinyl tracks Discogs has no time for, matched by song
+ * title: from the streaming `album` first, then a Spotify search per song for
+ * the rest. Titles, not positions, because vinyl and streaming tracklists
+ * differ (a side-C bonus track, a single left off, a different order). Null
+ * when nothing was found.
+ */
+export async function missingTrackLengths(
+  artist: string,
+  album: Artwork | null,
+  vinylTracks: Array<{
+    position: string
+    title: string
+    duration: string
+    /** The track's own artist, on splits and compilations. */
+    artist?: string
+  }>,
+): Promise<{
+  source: 'spotify' | 'itunes'
+  lengths: Array<{ position: string; sec: number }>
+  /** The streaming album they came from; null when found song by song. */
+  album: string | null
+} | null> {
+  const missing = vinylTracks.filter((t) => trackSeconds(t.duration) === 0)
+  if (!missing.length) return null
+  const streamed = album ? await albumTracks(album) : []
+  const lengths: Array<{ position: string; sec: number }> = []
+  const used = new Set<number>()
+  for (const t of missing) {
+    const key = songKey(t.title)
+    const i = streamed.findIndex(
+      (s, j) => !used.has(j) && s.sec > 0 && songKey(s.name) === key,
+    )
+    if (i < 0) continue
+    used.add(i)
+    lengths.push({ position: t.position, sec: streamed[i].sec })
+  }
+  // Same album, titles written another way (another script, another
+  // language): fall back to album order when no title matched at all.
+  if (!lengths.length && streamed.length >= vinylTracks.length)
+    vinylTracks.forEach((t, i) => {
+      if (trackSeconds(t.duration) === 0 && streamed[i].sec > 0)
+        lengths.push({ position: t.position, sec: streamed[i].sec })
+    })
+  const fromAlbum = lengths.length
+
+  const placed = new Set(lengths.map((l) => l.position))
+  const rest = missing
+    .filter((t) => !placed.has(t.position))
+    .slice(0, MAX_SONG_SEARCHES)
+  const searched = await Promise.all(
+    rest.map((t) =>
+      spotifyTrackSeconds(t.artist || artist, t.title).catch(() => null),
+    ),
+  )
+  rest.forEach((t, i) => {
+    const sec = searched[i]
+    if (sec) lengths.push({ position: t.position, sec })
+  })
+
+  if (!lengths.length) return null
+  return {
+    source: fromAlbum && album ? album.source : 'spotify',
+    lengths,
+    album: fromAlbum && album ? album.name : null,
+  }
 }
 
 /**

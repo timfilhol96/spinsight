@@ -143,6 +143,20 @@ create table if not exists public.want_items (
 );
 create index if not exists want_items_master_idx on public.want_items (master_id);
 
+-- MusicBrainz / Wikidata lookups per record (IDs, exact Wikipedia titles,
+-- awards, certifications, rating), shared by every pressing of a master. Stale after 14 days.
+create table if not exists public.record_facts_cache (
+  discogs_key text primary key check (discogs_key ~ '^(master|release):[0-9]+$'), -- "master:21491"
+  mbid text,                       -- MusicBrainz release group
+  wikidata_qid text,
+  original_lang text,              -- the album's language, when its article isn't English: "fr"
+  original_title text,
+  enwiki_title text,
+  frwiki_title text,
+  external_praise jsonb not null default '{}'::jsonb, -- { awards, certifications, musicbrainzRating }
+  fetched_at timestamptz not null default now()
+);
+
 create table if not exists public.sync_runs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users (id) on delete cascade,
@@ -166,3 +180,4 @@ alter table public.sync_runs enable row level security;
 alter table public.follows enable row level security;
 alter table public.play_reactions enable row level security;
 alter table public.want_items enable row level security;
+alter table public.record_facts_cache enable row level security;

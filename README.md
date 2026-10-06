@@ -51,6 +51,22 @@ TanStack Query · Supabase (Postgres) · Vercel.
 - **Now playing** (`src/components/now-playing.tsx`): logging a spin docks the
   record on every page and tints the app until "Done" or its runtime ends.
   Runtimes come from Discogs track times, else the streaming album's.
+- **Listening room** (`src/lib/liner-notes.server.ts`): credits, notes and the
+  artist bio come from Discogs. The Discogs master (or the release, when it
+  has no master) is matched to a MusicBrainz release group and on to its
+  Wikidata item (`src/lib/musicbrainz.server.ts`,
+  `src/lib/wikidata.server.ts`), which names the album's exact Wikipedia
+  article: in the album's own language first (Wikidata's "language of work"),
+  then English, then French. A title search is the fallback. Praise for stand
+  mode (`src/lib/praise.server.ts`) is read from the English article's
+  wikitext when there is one, since the parser knows its templates: awards,
+  critics' lists, certifications, chart peaks, review quotes and scores.
+  Wikidata adds awards the article only mentions in prose, and sales
+  certifications for countries the article doesn't list. The Discogs and
+  MusicBrainz community ratings count when they're high and well voted. Only
+  high marks are kept. MusicBrainz allows one request a second, so its and
+  Wikidata's answers are cached per master (or release) for 14 days in
+  `record_facts_cache`. Every source fails soft.
 - **Friends** (`src/lib/friends*.ts`, `src/routes/friends.*`): one-way
   follows by Discogs username. Usernames not on Spinsight yet stay pending
   until that person signs in (invite links make them follow you back). The
