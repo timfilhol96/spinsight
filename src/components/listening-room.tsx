@@ -1126,7 +1126,7 @@ function StandMode({
 
         <div
           ref={textBox}
-          className="flex min-h-0 min-w-0 flex-1 flex-col justify-[safe_center] overflow-hidden landscape:self-stretch"
+          className="flex min-h-0 min-w-0 flex-1 flex-col justify-center-safe overflow-hidden landscape:self-stretch"
         >
           <div
             ref={textInner}
