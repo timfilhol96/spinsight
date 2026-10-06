@@ -20,7 +20,7 @@ import { editionTokens } from '#/lib/editions'
 import { env } from '#/lib/env.server'
 import { findSpotifyArtist } from '#/lib/spotify.server'
 import type { SpotifyArtist } from '#/lib/spotify.server'
-import { DETAILS_VERSION } from '#/lib/records'
+import { DETAILS_VERSION, detailsOutdated } from '#/lib/records'
 import { db } from '#/lib/supabase.server'
 import type { UserRow } from '#/lib/supabase.server'
 import { parseVinylLook } from '#/lib/vinyl-color'
@@ -264,6 +264,7 @@ type EnrichRow = {
   formats: DiscogsFormat[]
   enriched_at: string | null
   details_version: number
+  tracklist: Array<{ duration?: string }> | null
 }
 
 /**
@@ -286,7 +287,7 @@ export async function enrichBatch(
   const { data: rows, error } = await supabase
     .from('collection_items')
     .select(
-      'release:releases!inner(id, master_id, title, year, artists, formats, enriched_at, details_version)',
+      'release:releases!inner(id, master_id, title, year, artists, formats, enriched_at, details_version, tracklist)',
     )
     .eq('user_id', user.id)
   if (error) throw error
@@ -297,7 +298,7 @@ export async function enrichBatch(
     if (
       !rel.enriched_at ||
       rel.enriched_at < staleBefore ||
-      rel.details_version < DETAILS_VERSION
+      detailsOutdated(rel.details_version, rel.tracklist)
     )
       todo.set(rel.id, rel)
   }

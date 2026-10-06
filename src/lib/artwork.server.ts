@@ -259,6 +259,27 @@ const RECORDING_TAGS: Array<[RegExp, string]> = [
   [/\bversion\b/i, 'version'],
 ]
 
+const PART_NUMBERS: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  i: 1,
+  ii: 2,
+  iii: 3,
+  iv: 4,
+  v: 5,
+  vi: 6,
+}
+/**
+ * "- Part 1", ", Pt. 1", "(Part I)", "Part One", "Partie 1", "Teil 1": the
+ * same part written differently by Discogs and streaming services.
+ */
+const PART =
+  /\s*[-,:]?\s*[([]?\b(?:part|pt|partie|parte|teil)\b\.?\s*(\d+|one|two|three|four|five|six|i{1,3}|iv|vi?)\b[)\]]?/i
+
 /**
  * A song title's comparison key. Discogs credits guests in the title
  * ("Myself In The Way Feat. Brendan Yates") and Spotify tags reissues on the
@@ -267,7 +288,14 @@ const RECORDING_TAGS: Array<[RegExp, string]> = [
  * edition's instrumental doesn't get the album take's length.
  */
 export function songKey(title: string): string {
-  const name = title.replace(/\s+(feat\.?|ft\.?|featuring)\s.*$/i, '')
+  const feat = title.replace(/\s+(feat\.?|ft\.?|featuring)\s.*$/i, '')
+  // Taken out before anything else, since brackets are dropped below and
+  // "(Part 1)" and "(Part 2)" must stay apart.
+  const part = PART.exec(feat)
+  const partNo = part
+    ? (PART_NUMBERS[part[1].toLowerCase()] ?? Number(part[1]))
+    : null
+  const name = part ? feat.replace(PART, ' ') : feat
   const tags = [
     ...[...name.matchAll(/[([]([^)\]]*)[)\]]/g)].map((m) => m[1]),
     /\s+-\s+(.+)$/.exec(name)?.[1] ?? '',
@@ -284,7 +312,8 @@ export function songKey(title: string): string {
       '',
     ),
   )
-  return recording.length ? `${base}~${recording.join('~')}` : base
+  const key = partNo ? `${base}#${partNo}` : base
+  return recording.length ? `${key}~${recording.join('~')}` : key
 }
 
 /**

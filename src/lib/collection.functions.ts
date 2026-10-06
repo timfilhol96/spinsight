@@ -2,7 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { CURRENCIES, parseMoney } from '#/lib/currency'
 import type { DiscogsRelease } from '#/lib/discogs.server'
-import { DETAILS_VERSION } from '#/lib/records'
+import { detailsOutdated } from '#/lib/records'
 import type {
   CollectionRecord,
   CoverOption,
@@ -199,7 +199,8 @@ export const getProfile = createServerFn({ method: 'GET' })
         durationSource: r.duration_source ?? null,
         enriched: !!r.enriched_at,
         needsDetails:
-          !r.enriched_at || (r.details_version ?? 0) < DETAILS_VERSION,
+          !r.enriched_at ||
+          detailsOutdated(r.details_version ?? 0, r.tracklist),
         playCount: playStats.get(Number(r.id))?.count ?? 0,
         lastPlayedAt: playStats.get(Number(r.id))?.last ?? null,
         spotifyGenres: [

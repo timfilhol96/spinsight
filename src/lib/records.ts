@@ -1,14 +1,40 @@
 // Types shared between server functions and the UI.
 import type { Money, Rates } from '#/lib/currency'
 import type { VinylLook } from '#/lib/vinyl-color'
+import { trackSeconds } from '#/lib/track-follower'
 
 /**
  * Bump when enrichment starts filling new fields; rows with an older version
  * are re-fetched on the next run. v2: original year, USD prices, artwork.
  * v3: edition-aware artwork. v4: streaming runtime when Discogs has none.
  * v5: each track Discogs has no time for gets its streaming length.
+ * v6: song titles match across "Part 1" / "Pt. 1"; only records still
+ * missing a track time are re-fetched for it (see TRACK_TIMES_VERSION).
  */
-export const DETAILS_VERSION = 5
+export const DETAILS_VERSION = 6
+
+/**
+ * The last version that changed every record. Versions after it only
+ * improved track-time matching, so they re-fetch a record only when one of
+ * its tracks still has no length.
+ */
+export const TRACK_TIMES_VERSION = 5
+
+/**
+ * Whether a release's details are from an older enrichment and need
+ * fetching again. Shared by the sync (which re-fetches) and the collection
+ * (which counts what's still pending), so the two always agree.
+ */
+export function detailsOutdated(
+  version: number,
+  tracklist: Array<{ duration?: string }> | null,
+): boolean {
+  if (version < TRACK_TIMES_VERSION) return true
+  return (
+    version < DETAILS_VERSION &&
+    (tracklist ?? []).some((t) => !trackSeconds(t.duration))
+  )
+}
 
 /** Runtime assumed when a record's length is unknown (a typical LP). */
 export const DEFAULT_RUNTIME_SEC = 45 * 60
