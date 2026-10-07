@@ -81,9 +81,14 @@ TanStack Query · Supabase (Postgres) · Vercel.
   it works live in `src/routes/{privacy,terms,trust,about}.tsx`; update
   `POLICIES_UPDATED` in `src/lib/site.ts` when their content changes.
 - **Link preview and install screenshots:** `public/og.jpg` and
-  `public/screenshots/` are real app screenshots (no avatars, no collection
-  value). `scripts/preview/og-card.html` is the card's source, with
-  instructions to regenerate it.
+  `public/screenshots/` are real app screenshots of a made-up collection.
+  Run `SPINSIGHT_DEMO=1 npm run dev` and `/u/samspins` serves it, signed in
+  as its owner (dev only, nothing touches the database; see
+  `src/lib/demo-profile.server.ts`). Capture at device pixel ratio 2: the
+  landing page uses `collection-wide@2x.webp` (2560×1600) on retina screens.
+  `scripts/preview/demo-collection.mjs` rebuilds the records and
+  `scripts/preview/og-card.html` is the card's source, with instructions to
+  regenerate it.
 - **Disc photos** (`src/components/disc-photo-editor.tsx`): owners can crop a
   Discogs photo of the vinyl to use as the disc; colours are sampled server-side
   with sharp (`src/lib/disc-photo.server.ts`).

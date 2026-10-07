@@ -17,6 +17,10 @@ import type { DiscPhoto, DiscogsFormat, VinylLook } from '#/lib/vinyl-color'
 
 export const getViewer = createServerFn({ method: 'GET' }).handler(
   async (): Promise<Viewer | null> => {
+    if (import.meta.env.DEV) {
+      const demo = await import('#/lib/demo-profile.server')
+      if (demo.demoMode()) return demo.demoViewer
+    }
     const { currentUser } = await import('#/lib/session.server')
     const user = await currentUser()
     if (!user) return null
@@ -70,6 +74,11 @@ export const getProfile = createServerFn({ method: 'GET' })
     z.object({ username: z.string().min(1).max(100) }).parse(d),
   )
   .handler(async ({ data }): Promise<Profile | null> => {
+    if (import.meta.env.DEV) {
+      const demo = await import('#/lib/demo-profile.server')
+      if (demo.demoMode() && data.username.toLowerCase() === demo.DEMO_USERNAME)
+        return demo.demoProfile()
+    }
     const { db } = await import('#/lib/supabase.server')
     const { currentUser } = await import('#/lib/session.server')
     const supabase = db()

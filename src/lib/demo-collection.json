@@ -1,0 +1,654 @@
+[
+  {
+    "artist": "Khruangbin",
+    "title": "Mordechai",
+    "originalYear": 2020,
+    "year": 2020,
+    "genres": [
+      "Rock",
+      "Funk / Soul"
+    ],
+    "styles": [
+      "Psychedelic Rock",
+      "Funk"
+    ],
+    "vinylText": "Pink Translucent",
+    "label": "Dead Oceans",
+    "dateAdded": "2026-09-28T10:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/94/a7/44/94a74465-1fe9-b897-a1ed-99b2e5b3b497/656605149363.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/94/a7/44/94a74465-1fe9-b897-a1ed-99b2e5b3b497/656605149363.jpg/150x150bb.jpg",
+    "durationSec": 2280
+  },
+  {
+    "artist": "Tame Impala",
+    "title": "Currents",
+    "originalYear": 2015,
+    "year": 2023,
+    "genres": [
+      "Rock",
+      "Electronic"
+    ],
+    "styles": [
+      "Psychedelic Rock",
+      "Synth-pop"
+    ],
+    "vinylText": "Purple Marbled",
+    "label": "Modular",
+    "dateAdded": "2026-09-14T11:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/64/48/5c/64485cc9-968c-68cc-764e-9a7c71733def/00602567155454.rgb.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/64/48/5c/64485cc9-968c-68cc-764e-9a7c71733def/00602567155454.rgb.jpg/150x150bb.jpg",
+    "durationSec": 2700
+  },
+  {
+    "artist": "Tycho",
+    "title": "Awake",
+    "originalYear": 2014,
+    "year": 2014,
+    "genres": [
+      "Electronic"
+    ],
+    "styles": [
+      "Downtempo",
+      "Chillwave"
+    ],
+    "vinylText": "White With Multi-Colour Splatter",
+    "label": "Ghostly International",
+    "dateAdded": "2026-09-02T12:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/59/c4/be/59c4be2c-7b16-d7c5-47ba-4790a4197f9b/804297820835.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/59/c4/be/59c4be2c-7b16-d7c5-47ba-4790a4197f9b/804297820835.jpg/150x150bb.jpg",
+    "durationSec": 3120
+  },
+  {
+    "artist": "Talking Heads",
+    "title": "Remain in Light",
+    "originalYear": 1980,
+    "year": 2023,
+    "genres": [
+      "Rock",
+      "Electronic"
+    ],
+    "styles": [
+      "New Wave",
+      "Art Rock"
+    ],
+    "vinylText": "Red",
+    "label": "Sire",
+    "dateAdded": "2026-08-03T14:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music/87/5f/5b/mzi.zzquknhm.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music/87/5f/5b/mzi.zzquknhm.jpg/150x150bb.jpg",
+    "durationSec": 3960
+  },
+  {
+    "artist": "Fleetwood Mac",
+    "title": "Rumours",
+    "originalYear": 1977,
+    "year": 2024,
+    "genres": [
+      "Rock",
+      "Pop"
+    ],
+    "styles": [
+      "Soft Rock",
+      "Pop Rock"
+    ],
+    "vinylText": "Gold Translucent",
+    "label": "Warner Bros. Records",
+    "dateAdded": "2026-07-21T15:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/4d/13/ba/4d13bac3-d3d5-7581-2c74-034219eadf2b/081227970949.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/4d/13/ba/4d13bac3-d3d5-7581-2c74-034219eadf2b/081227970949.jpg/150x150bb.jpg",
+    "durationSec": 2400
+  },
+  {
+    "artist": "Kraftwerk",
+    "title": "Computer World",
+    "originalYear": 1981,
+    "year": 2020,
+    "genres": [
+      "Electronic"
+    ],
+    "styles": [
+      "Synth-pop",
+      "Electro"
+    ],
+    "vinylText": "Yellow Translucent",
+    "label": "Parlophone",
+    "dateAdded": "2026-07-09T16:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music1/v4/ac/34/2d/ac342dcf-8349-676f-9510-c1bd27e932d2/dj.ajlyslln.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music1/v4/ac/34/2d/ac342dcf-8349-676f-9510-c1bd27e932d2/dj.ajlyslln.jpg/150x150bb.jpg",
+    "durationSec": 2820
+  },
+  {
+    "artist": "Bonobo",
+    "title": "Migration",
+    "originalYear": 2017,
+    "year": 2017,
+    "genres": [
+      "Electronic"
+    ],
+    "styles": [
+      "Downtempo"
+    ],
+    "vinylText": "Blue",
+    "label": "Ninja Tune",
+    "dateAdded": "2026-06-27T17:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/be/f1/d0/bef1d063-ed73-bd7d-3899-2217762cdcda/5054429005721.png/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/be/f1/d0/bef1d063-ed73-bd7d-3899-2217762cdcda/5054429005721.png/150x150bb.jpg",
+    "durationSec": 3240
+  },
+  {
+    "artist": "Radiohead",
+    "title": "In Rainbows",
+    "originalYear": 2007,
+    "year": 2016,
+    "genres": [
+      "Rock",
+      "Electronic"
+    ],
+    "styles": [
+      "Alternative Rock",
+      "Art Rock"
+    ],
+    "vinylText": "Clear",
+    "label": "XL Recordings",
+    "dateAdded": "2026-06-12T18:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/dd/50/c7/dd50c790-99ac-d3d0-5ab8-e3891fb8fd52/634904032463.png/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/dd/50/c7/dd50c790-99ac-d3d0-5ab8-e3891fb8fd52/634904032463.png/150x150bb.jpg",
+    "durationSec": 3660
+  },
+  {
+    "artist": "Kendrick Lamar",
+    "title": "To Pimp a Butterfly",
+    "originalYear": 2015,
+    "year": 2015,
+    "genres": [
+      "Hip Hop",
+      "Jazz"
+    ],
+    "styles": [
+      "Conscious",
+      "Jazzy Hip-Hop"
+    ],
+    "vinylText": null,
+    "label": "Top Dawg Entertainment",
+    "dateAdded": "2026-05-30T19:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/b5/a6/91/b5a69171-5232-3d5b-9c15-8963802f83dd/15UMGIM15814.rgb.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/b5/a6/91/b5a69171-5232-3d5b-9c15-8963802f83dd/15UMGIM15814.rgb.jpg/150x150bb.jpg",
+    "durationSec": 4080
+  },
+  {
+    "artist": "Miles Davis",
+    "title": "Kind of Blue",
+    "originalYear": 1959,
+    "year": 2015,
+    "genres": [
+      "Jazz"
+    ],
+    "styles": [
+      "Modal",
+      "Cool Jazz"
+    ],
+    "vinylText": "Blue Translucent",
+    "label": "Columbia",
+    "dateAdded": "2026-05-24T10:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music/7f/9f/d6/mzi.vtnaewef.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music/7f/9f/d6/mzi.vtnaewef.jpg/150x150bb.jpg",
+    "durationSec": 2520
+  },
+  {
+    "artist": "Caribou",
+    "title": "Our Love",
+    "originalYear": 2014,
+    "year": 2014,
+    "genres": [
+      "Electronic"
+    ],
+    "styles": [
+      "House",
+      "Downtempo"
+    ],
+    "vinylText": "Orange Translucent",
+    "label": "City Slang",
+    "dateAdded": "2026-05-11T12:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/e1/a7/10/e1a71039-67b3-faf9-df5e-5a2b90fad741/56555.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/e1/a7/10/e1a71039-67b3-faf9-df5e-5a2b90fad741/56555.jpg/150x150bb.jpg",
+    "durationSec": 3360
+  },
+  {
+    "artist": "Joni Mitchell",
+    "title": "Blue",
+    "originalYear": 1971,
+    "year": 2022,
+    "genres": [
+      "Folk, World, & Country",
+      "Pop"
+    ],
+    "styles": [
+      "Folk Rock",
+      "Acoustic"
+    ],
+    "vinylText": "Blue",
+    "label": "Reprise Records",
+    "dateAdded": "2026-05-04T13:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/00/a2/43/00a24363-cf69-bfd2-a26a-a042d57ab141/075992719926.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/00/a2/43/00a24363-cf69-bfd2-a26a-a042d57ab141/075992719926.jpg/150x150bb.jpg",
+    "durationSec": 3780
+  },
+  {
+    "artist": "Black Sabbath",
+    "title": "Paranoid",
+    "originalYear": 1970,
+    "year": 2021,
+    "genres": [
+      "Rock"
+    ],
+    "styles": [
+      "Heavy Metal",
+      "Hard Rock"
+    ],
+    "vinylText": "Purple Swirl",
+    "label": "Vertigo",
+    "dateAdded": "2026-04-26T14:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/be/27/91/be279120-2285-16c6-c7ba-9d6643d4a948/075992732727.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/be/27/91/be279120-2285-16c6-c7ba-9d6643d4a948/075992732727.jpg/150x150bb.jpg",
+    "durationSec": 4200
+  },
+  {
+    "artist": "Daft Punk",
+    "title": "Random Access Memories",
+    "originalYear": 2013,
+    "year": 2023,
+    "genres": [
+      "Electronic",
+      "Funk / Soul"
+    ],
+    "styles": [
+      "Disco",
+      "Nu-Disco"
+    ],
+    "vinylText": null,
+    "label": "Columbia",
+    "dateAdded": "2026-04-12T15:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/e8/43/5f/e8435ffa-b6b9-b171-40ab-4ff3959ab661/886443919266.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/e8/43/5f/e8435ffa-b6b9-b171-40ab-4ff3959ab661/886443919266.jpg/150x150bb.jpg",
+    "durationSec": 2640
+  },
+  {
+    "artist": "Massive Attack",
+    "title": "Mezzanine",
+    "originalYear": 1998,
+    "year": 2018,
+    "genres": [
+      "Electronic"
+    ],
+    "styles": [
+      "Trip Hop"
+    ],
+    "vinylText": null,
+    "label": "Virgin",
+    "dateAdded": "2026-03-29T16:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/8a/c1/04/8ac104fb-d37e-1433-5d2e-805710d7a7c4/00602567930983.rgb.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/8a/c1/04/8ac104fb-d37e-1433-5d2e-805710d7a7c4/00602567930983.rgb.jpg/150x150bb.jpg",
+    "durationSec": 3060
+  },
+  {
+    "artist": "Air",
+    "title": "Moon Safari",
+    "originalYear": 1998,
+    "year": 2018,
+    "genres": [
+      "Electronic"
+    ],
+    "styles": [
+      "Downtempo",
+      "Synth-pop"
+    ],
+    "vinylText": "Yellow",
+    "label": "Virgin",
+    "dateAdded": "2026-03-01T18:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/d1/f9/26/d1f926e7-e996-7166-3744-0710a82177ac/017046664455.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/d1/f9/26/d1f926e7-e996-7166-3744-0710a82177ac/017046664455.jpg/150x150bb.jpg",
+    "durationSec": 3900
+  },
+  {
+    "artist": "Amy Winehouse",
+    "title": "Back to Black",
+    "originalYear": 2006,
+    "year": 2016,
+    "genres": [
+      "Funk / Soul",
+      "Pop"
+    ],
+    "styles": [
+      "Soul"
+    ],
+    "vinylText": null,
+    "label": "Island Records",
+    "dateAdded": "2026-02-14T19:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/cf/3f/09/cf3f0994-980d-d8ed-088d-ae89af256b73/15UMGIM24224.rgb.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/cf/3f/09/cf3f0994-980d-d8ed-088d-ae89af256b73/15UMGIM24224.rgb.jpg/150x150bb.jpg",
+    "durationSec": 2340
+  },
+  {
+    "artist": "Gorillaz",
+    "title": "Demon Days",
+    "originalYear": 2005,
+    "year": 2018,
+    "genres": [
+      "Electronic",
+      "Hip Hop",
+      "Rock"
+    ],
+    "styles": [
+      "Alternative Rock",
+      "Trip Hop"
+    ],
+    "vinylText": "Red With Black Splatter",
+    "label": "Parlophone",
+    "dateAdded": "2026-01-10T13:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/1c/0f/81/1c0f818a-e458-dd84-6f1b-ccbdf5fe14d6/825646291045.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/1c/0f/81/1c0f818a-e458-dd84-6f1b-ccbdf5fe14d6/825646291045.jpg/150x150bb.jpg",
+    "durationSec": 4020
+  },
+  {
+    "artist": "Beach House",
+    "title": "Bloom",
+    "originalYear": 2012,
+    "year": 2012,
+    "genres": [
+      "Rock",
+      "Pop"
+    ],
+    "styles": [
+      "Dream Pop"
+    ],
+    "vinylText": "White Marbled",
+    "label": "Sub Pop",
+    "dateAdded": "2025-12-20T12:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/8b/b7/08/8bb7086b-cdb5-1ffe-926b-e7637bda6a0d/BeachHouse_Bloom_iTunes.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/8b/b7/08/8bb7086b-cdb5-1ffe-926b-e7637bda6a0d/BeachHouse_Bloom_iTunes.jpg/150x150bb.jpg",
+    "durationSec": 3600
+  },
+  {
+    "artist": "LCD Soundsystem",
+    "title": "Sound of Silver",
+    "originalYear": 2007,
+    "year": 2017,
+    "genres": [
+      "Electronic"
+    ],
+    "styles": [
+      "Dance-punk",
+      "Electro"
+    ],
+    "vinylText": "Silver",
+    "label": "DFA",
+    "dateAdded": "2025-11-29T14:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/fb/fe/a5/fbfea51a-0130-d557-c1f4-9e5e98b7bab8/094638511359.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/fb/fe/a5/fbfea51a-0130-d557-c1f4-9e5e98b7bab8/094638511359.jpg/150x150bb.jpg",
+    "durationSec": 2460
+  },
+  {
+    "artist": "Stevie Wonder",
+    "title": "Songs in the Key of Life",
+    "originalYear": 1976,
+    "year": 2016,
+    "genres": [
+      "Funk / Soul"
+    ],
+    "styles": [
+      "Soul"
+    ],
+    "vinylText": null,
+    "label": "Motown",
+    "dateAdded": "2025-11-08T15:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music118/v4/eb/1f/12/eb1f12ec-474c-63aa-43af-09282f423b9d/00602537004737.rgb.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music118/v4/eb/1f/12/eb1f12ec-474c-63aa-43af-09282f423b9d/00602537004737.rgb.jpg/150x150bb.jpg",
+    "durationSec": 2880
+  },
+  {
+    "artist": "Mac DeMarco",
+    "title": "Salad Days",
+    "originalYear": 2014,
+    "year": 2014,
+    "genres": [
+      "Rock"
+    ],
+    "styles": [
+      "Indie Rock",
+      "Psychedelic Rock"
+    ],
+    "vinylText": "Green Marbled",
+    "label": "Captured Tracks",
+    "dateAdded": "2025-10-18T16:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/e0/04/eb/e004eb2b-754f-4a76-9ecc-87d4eea2a327/cover.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/e0/04/eb/e004eb2b-754f-4a76-9ecc-87d4eea2a327/cover.jpg/150x150bb.jpg",
+    "durationSec": 3300
+  },
+  {
+    "artist": "Lauryn Hill",
+    "title": "The Miseducation of Lauryn Hill",
+    "originalYear": 1998,
+    "year": 2018,
+    "genres": [
+      "Hip Hop",
+      "Funk / Soul"
+    ],
+    "styles": [
+      "Neo Soul",
+      "Conscious"
+    ],
+    "vinylText": null,
+    "label": "Ruffhouse Records",
+    "dateAdded": "2025-09-27T17:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/09/6b/55/096b55c4-ee8f-23bd-df8f-0ca0821f3028/886446727189.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/09/6b/55/096b55c4-ee8f-23bd-df8f-0ca0821f3028/886446727189.jpg/150x150bb.jpg",
+    "durationSec": 3720
+  },
+  {
+    "artist": "John Coltrane",
+    "title": "A Love Supreme",
+    "originalYear": 1965,
+    "year": 2020,
+    "genres": [
+      "Jazz"
+    ],
+    "styles": [
+      "Hard Bop",
+      "Free Jazz"
+    ],
+    "vinylText": null,
+    "label": "Impulse!",
+    "dateAdded": "2025-08-30T18:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/e5/24/aa/e524aacd-467b-66f3-8931-0fcd6750a4b9/08UMGIM07914.rgb.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/e5/24/aa/e524aacd-467b-66f3-8931-0fcd6750a4b9/08UMGIM07914.rgb.jpg/150x150bb.jpg",
+    "durationSec": 4140
+  },
+  {
+    "artist": "Arctic Monkeys",
+    "title": "AM",
+    "originalYear": 2013,
+    "year": 2013,
+    "genres": [
+      "Rock"
+    ],
+    "styles": [
+      "Indie Rock"
+    ],
+    "vinylText": null,
+    "label": "Domino",
+    "dateAdded": "2025-07-19T19:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/69/9c/b5/699cb5d6-115c-ff73-9d26-e57ea4350d72/887828031795.png/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/69/9c/b5/699cb5d6-115c-ff73-9d26-e57ea4350d72/887828031795.png/150x150bb.jpg",
+    "durationSec": 2580
+  },
+  {
+    "artist": "Bob Marley & The Wailers",
+    "title": "Exodus",
+    "originalYear": 1977,
+    "year": 2020,
+    "genres": [
+      "Reggae"
+    ],
+    "styles": [
+      "Roots Reggae"
+    ],
+    "vinylText": null,
+    "label": "Island Records",
+    "dateAdded": "2025-05-10T11:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/23/fa/f8/23faf820-c4fa-2bf1-d672-846971f5cf5c/06UMGIM31355.rgb.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/23/fa/f8/23faf820-c4fa-2bf1-d672-846971f5cf5c/06UMGIM31355.rgb.jpg/150x150bb.jpg",
+    "durationSec": 3420
+  },
+  {
+    "artist": "The Cure",
+    "title": "Disintegration",
+    "originalYear": 1989,
+    "year": 2010,
+    "genres": [
+      "Rock"
+    ],
+    "styles": [
+      "Goth Rock",
+      "New Wave"
+    ],
+    "vinylText": null,
+    "label": "Fiction Records",
+    "dateAdded": "2025-04-05T12:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music/93/3c/2c/mzi.ujtdsknz.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music/93/3c/2c/mzi.ujtdsknz.jpg/150x150bb.jpg",
+    "durationSec": 3840
+  },
+  {
+    "artist": "Portishead",
+    "title": "Dummy",
+    "originalYear": 1994,
+    "year": 2014,
+    "genres": [
+      "Electronic"
+    ],
+    "styles": [
+      "Trip Hop"
+    ],
+    "vinylText": null,
+    "label": "Go! Beat",
+    "dateAdded": "2025-03-01T13:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/c1/71/93/c1719342-df7d-e9c5-c87c-53dae5afb289/00042282855329.rgb.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/c1/71/93/c1719342-df7d-e9c5-c87c-53dae5afb289/00042282855329.rgb.jpg/150x150bb.jpg",
+    "durationSec": 2280
+  },
+  {
+    "artist": "The Strokes",
+    "title": "Is This It",
+    "originalYear": 2001,
+    "year": 2016,
+    "genres": [
+      "Rock"
+    ],
+    "styles": [
+      "Indie Rock",
+      "Garage Rock"
+    ],
+    "vinylText": null,
+    "label": "RCA",
+    "dateAdded": "2025-01-25T14:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music123/v4/8a/60/0a/8a600af7-ac8b-bc4e-4352-78918c511e03/artwork.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music123/v4/8a/60/0a/8a600af7-ac8b-bc4e-4352-78918c511e03/artwork.jpg/150x150bb.jpg",
+    "durationSec": 2700
+  },
+  {
+    "artist": "The Beatles",
+    "title": "Abbey Road",
+    "originalYear": 1969,
+    "year": 2019,
+    "genres": [
+      "Rock"
+    ],
+    "styles": [
+      "Pop Rock"
+    ],
+    "vinylText": null,
+    "label": "Apple Records",
+    "dateAdded": "2024-12-14T15:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/48/53/43/485343e3-dd6a-0034-faec-f4b6403f8108/13UMGIM63890.rgb.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/48/53/43/485343e3-dd6a-0034-faec-f4b6403f8108/13UMGIM63890.rgb.jpg/150x150bb.jpg",
+    "durationSec": 3120
+  },
+  {
+    "artist": "Led Zeppelin",
+    "title": "Led Zeppelin IV",
+    "originalYear": 1971,
+    "year": 2014,
+    "genres": [
+      "Rock"
+    ],
+    "styles": [
+      "Hard Rock",
+      "Blues Rock"
+    ],
+    "vinylText": null,
+    "label": "Atlantic",
+    "dateAdded": "2024-11-02T16:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/5c/15/9b/5c159b27-95ca-b9a7-84e3-28e795fffd39/dj.kvkrpptq.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/5c/15/9b/5c159b27-95ca-b9a7-84e3-28e795fffd39/dj.kvkrpptq.jpg/150x150bb.jpg",
+    "durationSec": 3540
+  },
+  {
+    "artist": "Aphex Twin",
+    "title": "Selected Ambient Works 85-92",
+    "originalYear": 1992,
+    "year": 2013,
+    "genres": [
+      "Electronic"
+    ],
+    "styles": [
+      "Ambient",
+      "IDM"
+    ],
+    "vinylText": null,
+    "label": "Apollo",
+    "dateAdded": "2024-09-21T17:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/5f/b3/e0/5fb3e08d-c2cd-3da4-6ad7-c5dc61803683/cover.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/5f/b3/e0/5fb3e08d-c2cd-3da4-6ad7-c5dc61803683/cover.jpg/150x150bb.jpg",
+    "durationSec": 3960
+  },
+  {
+    "artist": "Sufjan Stevens",
+    "title": "Carrie & Lowell",
+    "originalYear": 2015,
+    "year": 2015,
+    "genres": [
+      "Folk, World, & Country",
+      "Rock"
+    ],
+    "styles": [
+      "Indie Rock",
+      "Folk"
+    ],
+    "vinylText": "Clear",
+    "label": "Asthmatic Kitty Records",
+    "dateAdded": "2024-08-10T18:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music91/v4/6b/20/6a/6b206ac1-e1b5-316d-334d-59df7b727fb6/656605613666.jpg/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music91/v4/6b/20/6a/6b206ac1-e1b5-316d-334d-59df7b727fb6/656605613666.jpg/150x150bb.jpg",
+    "durationSec": 2400
+  },
+  {
+    "artist": "Björk",
+    "title": "Homogenic",
+    "originalYear": 1997,
+    "year": 2015,
+    "genres": [
+      "Electronic",
+      "Pop"
+    ],
+    "styles": [
+      "Art Pop",
+      "Trip Hop"
+    ],
+    "vinylText": null,
+    "label": "One Little Indian",
+    "dateAdded": "2024-06-22T19:24:00Z",
+    "coverImage": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/12/38/d0/1238d076-0a43-5758-1876-5ab6d256d648/5016958995157.png/600x600bb.jpg",
+    "thumb": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/12/38/d0/1238d076-0a43-5758-1876-5ab6d256d648/5016958995157.png/150x150bb.jpg",
+    "durationSec": 2820
+  }
+]

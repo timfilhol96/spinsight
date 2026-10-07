@@ -181,7 +181,7 @@ function Landing() {
   )
 }
 
-/** Real screenshots, so visitors see the app before handing over Discogs. */
+/** App screenshots (demo data), so visitors see the app before handing over Discogs. */
 function AppPreview() {
   return (
     <section className="mt-24" aria-labelledby="preview-title">
@@ -194,7 +194,7 @@ function AppPreview() {
       </h2>
       <p className="mt-2 max-w-xl text-muted-foreground">
         Your shelf, the stats behind it, and a year-by-year recap you can share.
-        Here's a real collection.
+        Here's what a collection looks like.
       </p>
       {/* Phones: the phone view, since a desktop shot would be unreadable. */}
       <figure className="mx-auto mt-8 w-[72%] max-w-72 overflow-hidden rounded-[1.75rem] border-[6px] border-[#1b120c] shadow-2xl md:hidden">
@@ -216,6 +216,9 @@ function AppPreview() {
           </div>
           <img
             src="/screenshots/collection-wide.webp"
+            srcSet="/screenshots/collection-wide.webp 1280w, /screenshots/collection-wide@2x.webp 2560w"
+            // The page is up to 1180px and the phone overlay takes 6rem.
+            sizes="(min-width: 1212px) 1084px, calc(100vw - 8rem)"
             width={1280}
             height={800}
             loading="lazy"
