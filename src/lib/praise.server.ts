@@ -1,12 +1,13 @@
 import { matchKey } from '#/lib/artwork.server'
-import type { AlbumFacts, Praise } from '#/lib/liner-notes'
+import type { AlbumFacts, ArtistFacts, Praise } from '#/lib/liner-notes'
 
-// Critics' praise for an album, read from its Wikipedia article's wikitext:
+// Critics' praise for an album or a song, read from its Wikipedia article's wikitext:
 // the review-score box ({{Music ratings}}), the accolades and awards tables,
 // sales certifications, chart peaks and quotes in the reception section. Only
 // the highest marks are kept; stand mode shows them, and a middling review is
 // not something to put on the wall. The infobox facts (studio, producer…) are
-// read here too, since they come out of the same wikitext.
+// read here too, since they come out of the same wikitext, and so are the
+// artist's (origin, years active, genres).
 //
 // Wikitext is hand-written and messy: every parser here returns [] or null on
 // anything it doesn't recognise rather than throwing.
@@ -23,8 +24,12 @@ export const HIGH_COMMUNITY = 4.0
 export const MIN_COMMUNITY_VOTES = 25
 /** Longer quotes don't read from across the room. */
 const MAX_QUOTE = 300
+/** Quotes shown at most: each takes the whole stand-mode screen. */
+const MAX_QUOTES = 2
+/** Shorter quotes are fragments ("expert mood-setters or crafty reconstructionists"). */
+const MIN_QUOTE_WORDS = 7
 /** Bare scores shown at most; quotes and placings say more. */
-const MAX_RATINGS = 4
+const MAX_RATINGS = 2
 /** Awards shown at most, before completing the last award body (see capByBody). */
 const MAX_AWARDS = 4
 /** List placings shown at most; a celebrated album has dozens. */
@@ -376,7 +381,11 @@ function quotes(wikitext: string, high: Review[]): Praise[] {
     )
       continue
     const text = quoted.replace(/''/g, '').trim()
-    if (text.length > MAX_QUOTE || text.split(' ').length < 5) continue
+    const words = text.split(' ')
+    if (text.length > MAX_QUOTE || words.length < MIN_QUOTE_WORDS) continue
+    // A title in quotes ("500 Greatest Albums of All Time"), not a critic's words.
+    if (words.filter((w) => /^[A-Z\d]/.test(w)).length > words.length / 2)
+      continue
     const outside = matchKey(sentence.replace(quoted, ''))
     const review = high.find((r) => outside.includes(matchKey(r.by)))
     if (!review || out.some((q) => q.by === review.by)) continue
@@ -387,16 +396,19 @@ function quotes(wikitext: string, high: Review[]): Praise[] {
       score: review.score.display,
     })
   }
-  return out
+  return out.slice(0, MAX_QUOTES)
 }
 
 /** Awards where a nomination is itself an honour; elsewhere only wins count. */
 const MAJOR_AWARD =
   /grammy|\bbrit awards?\b|mercury|polaris|juno|victoires de la musique/i
 
-/** The album's name from its infobox, to tell album awards from its singles'. */
+/** An album or a song: their articles chart and name things differently. */
+export type Work = 'album' | 'song'
+
+/** The work's name from its infobox, to tell an album's awards from its singles'. */
 function infoboxName(wikitext: string): string | null {
-  const at = wikitext.search(/\{\{\s*infobox album/i)
+  const at = wikitext.search(/\{\{\s*infobox (album|song|single)/i)
   if (at < 0) return null
   const name = templateParams(templateAt(wikitext, at)).named.get('name')
   return name ? plain(name) : null
@@ -623,14 +635,76 @@ const CHART_NAMES: Record<string, string> = {
   Korea: 'South Korea',
   NewZealand: 'New Zealand',
 }
+/** {{Single chart}} codes that don't read well as they are. */
+const SINGLE_CHART_NAMES: Record<string, string> = {
+  UK: 'UK Singles',
+  UK2: 'UK Singles',
+  UKsinglesbyname: 'UK Singles',
+  UKchartstats: 'UK Singles',
+  UKindie: 'UK Indie',
+  UKrock: 'UK Rock & Metal',
+  UKrandb: 'UK R&B',
+  UKdance: 'UK Dance',
+  Billboardhot100: 'Billboard Hot 100',
+  Billboardglobal200: 'Billboard Global 200',
+  Billboardalternativesongs: 'US Alternative Airplay',
+  Billboardmodernrock: 'US Alternative Airplay',
+  Billboardrocksongs: 'US Rock Airplay',
+  Billboardmainstreamrock: 'US Mainstream Rock',
+  Billboardhotrocksongs: 'US Hot Rock & Alternative Songs',
+  Billboardrandbhiphop: 'US Hot R&B/Hip-Hop Songs',
+  Billboardhotcountrysongs: 'US Hot Country Songs',
+  Billboarddanceelectronic: 'US Hot Dance/Electronic Songs',
+  Billboardjapanhot100: 'Japan Hot 100',
+  Canada: 'Canada',
+  Dutch40: 'Netherlands',
+  Dutch100: 'Netherlands',
+  Flanders: 'Belgium (Flanders)',
+  Wallonia: 'Belgium (Wallonia)',
+  Hungarysingle: 'Hungary',
+  Czech: 'Czech Republic',
+  NewZealand: 'New Zealand',
+  'West Germany': 'West Germany',
+}
+
+/**
+ * Song charts that say little about the song: airplay on one format, clubs,
+ * downloads, streams, "bubbling under" lists. The national charts and the
+ * big genre ones (Alternative, Rock, R&B) say more.
+ */
+const MINOR_SINGLE_CHART =
+  /airplay|radio|club|adult|rhythmic|digital|download|stream|dance(?!electronic)|tip|bubbling|heatseeker|CIS|pop ?songs|latin|eurodigital|moldova|kazakhstan/i
+/** Keeps the genre airplay charts that do read as achievements. */
+const GENRE_AIRPLAY =
+  /alternative|modernrock|^Billboardrocksongs$|mainstreamrock/i
+
+/**
+ * A chart code as readable text when it's not in the table: "Ireland2" →
+ * "Ireland", "BillboardHotCountrySongs" → "US Hot Country Songs".
+ */
+function chartName(code: string, names: Record<string, string>): string {
+  if (names[code]) return names[code]
+  const bare = code.replace(/\d+$/, '').trim()
+  if (names[bare]) return names[bare]
+  if (/^billboard./i.test(bare))
+    return `US ${bare
+      .slice(9)
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/^./, (c) => c.toUpperCase())}`
+  return bare.replace(/([a-z])([A-Z])/g, '$1 $2')
+}
+
 /** The headline charts, named first among equal peaks. */
-const MAIN_CHART = /^(UK Albums|(US )?Billboard 200)\b/
+const MAIN_CHART =
+  /^(UK Albums|(US )?Billboard 200|UK Singles|Billboard Hot 100)\b/
 
 /**
  * Top-ten peaks from the weekly charts, one line per position:
- * "No. 1 · UK Albums, Billboard 200, France and 12 more".
+ * "No. 1 · UK Albums, Billboard 200, France and 12 more". A chart counted
+ * twice (Dutch Top 40 and Single Top 100 are both "Netherlands") keeps its
+ * best peak only.
  */
-function charts(wikitext: string): Praise[] {
+function charts(wikitext: string, work: Work): Praise[] {
   const body =
     section(wikitext, /^weekly charts?$/i) ??
     // Without a Weekly subsection, stop before any year-end tables.
@@ -639,23 +713,43 @@ function charts(wikitext: string): Praise[] {
       /^(weekly )?charts?( performance| and certifications)?$/i,
     )?.split(/^=+\s*(?:year|decade|all-time)/im)[0]
   if (!body) return []
+  const song = work === 'song'
   const peaks: Array<{ name: string; peak: number }> = []
-  for (const tpl of templatesNamed(body, /album chart/)) {
+  for (const tpl of templatesNamed(
+    body,
+    song ? /single ?chart/ : /album chart/,
+  )) {
     const [code, peak] = templateParams(tpl).positional
-    if (code)
-      peaks.push({
-        name: CHART_NAMES[code] ?? code,
-        peak: parseInt(peak ?? '', 10),
-      })
+    if (!code) continue
+    if (song && MINOR_SINGLE_CHART.test(code) && !GENRE_AIRPLAY.test(code))
+      continue
+    peaks.push({
+      name: chartName(code.trim(), song ? SINGLE_CHART_NAMES : CHART_NAMES),
+      peak: parseInt(peak ?? '', 10),
+    })
   }
   // Hand-written rows: "! scope=row | Japanese Albums (Oricon) || 3".
   for (const row of tables(body).flatMap(tableRows)) {
     const keys = Object.keys(row)
     const name = keys.find((k) => k.startsWith('chart'))
     const peak = keys.find((k) => /peak|position/.test(k))
-    if (name && peak && row[name])
-      peaks.push({ name: row[name], peak: parseInt(row[peak], 10) })
+    if (!name || !peak || !row[name]) continue
+    if (
+      song &&
+      MINOR_SINGLE_CHART.test(row[name]) &&
+      !/alternative|rock/i.test(row[name])
+    )
+      continue
+    peaks.push({
+      // "UK Singles (OCC)" → "UK Singles"; Belgium's regions are the chart.
+      name: row[name]
+        .replace(/\s*\((?!flanders|wallonia)[^)]*\)/gi, '')
+        .replace(/^US /, (m) => (/billboard/i.test(row[name]) ? '' : m))
+        .trim(),
+      peak: parseInt(row[peak], 10),
+    })
   }
+  const counted = new Set<string>()
   const byPeak = new Map<number, string[]>()
   peaks
     .filter((p) => Number.isFinite(p.peak) && p.peak >= 1 && p.peak <= TOP_PEAK)
@@ -665,8 +759,12 @@ function charts(wikitext: string): Praise[] {
         Number(!MAIN_CHART.test(a.name)) - Number(!MAIN_CHART.test(b.name)),
     )
     .forEach((p) => {
+      // Sorted best peak first, so a chart seen again is a worse peak.
+      const key = matchKey(p.name.replace(/\(.*?\)/g, ''))
+      if (counted.has(key)) return
+      counted.add(key)
       const names = byPeak.get(p.peak) ?? []
-      if (!names.includes(p.name)) names.push(p.name)
+      names.push(p.name)
       byPeak.set(p.peak, names)
     })
   return [...byPeak].slice(0, MAX_CHART_LINES).map(([peak, names]): Praise => {
@@ -676,7 +774,7 @@ function charts(wikitext: string): Praise[] {
       text: `No. ${peak} · ${names.slice(0, MAX_CHARTS).join(', ')}${
         more > 0 ? ` and ${more} more` : ''
       }`,
-      by: 'Weekly album charts',
+      by: song ? 'Weekly singles charts' : 'Weekly album charts',
     }
   })
 }
@@ -691,13 +789,14 @@ function safe<T>(parse: () => T, fallback: T): T {
 }
 
 /**
- * The album's highest praise, strongest first. Awards and certifications
- * from Wikidata join the article's own; pass '' as the wikitext when there's
- * no article and only those are known.
+ * The album's (or song's) highest praise, strongest first. Awards and
+ * certifications from Wikidata join the article's own; pass '' as the
+ * wikitext when there's no article and only those are known.
  */
 export function praiseFrom(
   wikitext: string,
   facts: { awards?: AwardFact[]; certifications?: CertFact[] } = {},
+  work: Work = 'album',
 ): Praise[] {
   const w = stripRefs(wikitext)
   const high = safe(() => ratings(w), [])
@@ -714,7 +813,7 @@ export function praiseFrom(
     ...safe(() => accolades(w), []),
     ...award.nominated,
     ...safe(() => certifications(w, facts.certifications ?? []), []),
-    ...safe(() => charts(w), []),
+    ...safe(() => charts(w, work), []),
     ...q,
     ...high
       .filter((r) => !quotedBy.has(r.by))
@@ -758,7 +857,9 @@ const listTemplates = (tpl: string): string | null =>
   /^\{\{\s*(hlist|flatlist|flat list|plainlist|plain list|unbulleted list|ubl|ubil)\s*[|}]/i.test(
     tpl,
   )
-    ? templateParams(tpl).positional.join('\n')
+    ? templateParams(tpl)
+        .positional.map((item) => replaceTemplates(item, inlineTemplates))
+        .join('\n')
     : inlineTemplates(tpl)
 
 /**
@@ -818,6 +919,41 @@ export function albumFactsFrom(wikitext: string): AlbumFacts | null {
       facts.studios.length ||
       facts.producers.length ||
       facts.length
+      ? facts
+      : null
+  }, null)
+}
+
+/**
+ * Origin, years active and genres from {{Infobox musical artist}}: the
+ * at-a-glance line under the artist's summary.
+ */
+export function artistFactsFrom(wikitext: string): ArtistFacts | null {
+  return safe(() => {
+    const w = stripRefs(wikitext)
+    // A solo artist's {{Infobox person}} embeds the musical artist one: read
+    // both, the first value found winning.
+    const named = new Map<string, string>()
+    for (const tpl of templatesNamed(
+      w,
+      /infobox (musical artist|band|musician|person)/,
+    ))
+      for (const [k, v] of templateParams(tpl).named)
+        if (v && !named.has(k)) named.set(k, v)
+    if (!named.size) return null
+    const years = listItems(named.get('years_active'))
+    const facts: ArtistFacts = {
+      origin:
+        listItems(named.get('origin') ?? named.get('birth_place'))[0] ?? null,
+      // Split careers ("1985–2003, 2009–present") read as one line.
+      yearsActive: years.length
+        ? years.join(', ').replace(/\s*[-–]\s*/g, '–')
+        : null,
+      genres: listItems(named.get('genre'))
+        .map((g) => g.replace(/^\w/, (c) => c.toUpperCase()))
+        .slice(0, 4),
+    }
+    return facts.origin || facts.yearsActive || facts.genres.length
       ? facts
       : null
   }, null)

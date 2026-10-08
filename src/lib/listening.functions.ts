@@ -1,9 +1,10 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
-import type { LinerNotes } from '#/lib/liner-notes'
+import type { LinerNotes, TrackFacts } from '#/lib/liner-notes'
 
-// Listening room. Read-only: it looks things up on Discogs, Wikipedia and
-// Spotify and never writes to the database.
+// Listening room. Read-only: it looks things up on Discogs, Wikipedia,
+// Genius, Last.fm, setlist.fm and Spotify and never writes to the database
+// (beyond the shared cache of public facts about a record).
 
 export const getLinerNotes = createServerFn({ method: 'GET' })
   .validator((d: { releaseId: number }) =>
@@ -24,6 +25,27 @@ export const getLinerNotes = createServerFn({ method: 'GET' })
       token: user.oauth_token,
       secret: user.oauth_token_secret,
     })
+  })
+
+/**
+ * What's known about the song that's playing. Only public sources, so any
+ * signed-in listener may ask; the room passes the track's own artist (on a
+ * split, the band on that side).
+ */
+export const getTrackFacts = createServerFn({ method: 'GET' })
+  .validator((d: { artist: string; title: string }) =>
+    z
+      .object({
+        artist: z.string().trim().min(1).max(200),
+        title: z.string().trim().min(1).max(300),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }): Promise<TrackFacts> => {
+    const { requireUser } = await import('#/lib/session.server')
+    const { trackFactsFor } = await import('#/lib/track-facts.server')
+    await requireUser()
+    return trackFactsFor(data.artist, data.title)
   })
 
 /**

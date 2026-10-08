@@ -50,6 +50,8 @@ export type MbReleaseGroup = {
   wikipediaUrl: string | null
   /** Community rating out of 5. */
   rating: { average: number; count: number } | null
+  /** The first credited artist: setlist.fm looks artists up by it. */
+  artistMbid: string | null
 }
 
 /** The MusicBrainz entity a Discogs page is linked from, by relation kind. */
@@ -107,7 +109,10 @@ async function releaseGroup(mbid: string): Promise<MbReleaseGroup | null> {
     title: string
     relations?: Relation[]
     rating?: { value: number | null; 'votes-count': number }
-  }>(`/release-group/${mbid}?inc=url-rels+ratings+genres&fmt=json`)
+    'artist-credit'?: Array<{ artist?: { id: string } }>
+  }>(
+    `/release-group/${mbid}?inc=url-rels+ratings+genres+artist-credits&fmt=json`,
+  )
   if (!rg) return null
   const url = (type: string) =>
     rg.relations?.find((r) => r.type === type)?.url?.resource ?? null
@@ -122,5 +127,6 @@ async function releaseGroup(mbid: string): Promise<MbReleaseGroup | null> {
       rating && typeof rating.value === 'number'
         ? { average: rating.value, count: rating['votes-count'] }
         : null,
+    artistMbid: rg['artist-credit']?.[0]?.artist?.id ?? null,
   }
 }

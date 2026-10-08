@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   ExternalLink,
@@ -12,11 +12,19 @@ import { Equalizer } from '#/components/now-playing'
 import { VinylDisc } from '#/components/vinyl-disc'
 import { Button } from '#/components/ui/button'
 import { Skeleton } from '#/components/ui/skeleton'
-import { getArtworkPalette, getLinerNotes } from '#/lib/listening.functions'
+import {
+  getArtworkPalette,
+  getLinerNotes,
+  getTrackFacts,
+} from '#/lib/listening.functions'
 import type {
   CreditGroup,
   LinerNotes,
+  LiveTrack,
+  Popularity,
   Praise,
+  Show,
+  TrackFacts,
   WikiPage,
 } from '#/lib/liner-notes'
 import { formatDuration } from '#/lib/records'
@@ -36,9 +44,11 @@ import type {
 import { cn } from '#/lib/utils'
 
 // The listening room: the record on the platter, full screen, with something
-// to read while it plays. It follows along track by track (an estimate the
-// listener can correct) and has a lean-back "stand mode" for a phone or
-// tablet propped up next to the turntable.
+// to read while it plays: the track first, then the album, then the artist.
+// It follows along track by track (an estimate the listener can correct) and
+// has a lean-back "stand mode" for a phone or tablet propped up next to the
+// turntable. Each fact is said once: what the header, the credits or the
+// song already say isn't repeated further down.
 
 type Props = {
   record: CollectionRecord
@@ -105,17 +115,48 @@ export function ListeningRoom({
     }
   }, [onClose, stand])
 
-  const trackNotes =
-    follower.position?.state === 'playing'
-      ? notes.data?.tracks[follower.position.track.index]
-      : undefined
+  const playing =
+    follower.position?.state === 'playing' ? follower.position.track : null
+  const trackNotes = playing ? notes.data?.tracks[playing.index] : undefined
+
+  // The song's own facts, looked up as it comes on (the liner notes first,
+  // so a split's track goes to the band on that side). The next one is
+  // fetched ahead so it's there when the needle gets to it.
+  const qc = useQueryClient()
+  const trackFactsQuery = (t: TimedTrack | null) => {
+    const artist =
+      (t && notes.data?.tracks[t.index]?.artist) ??
+      notes.data?.artist?.name ??
+      record.artist
+    return {
+      queryKey: ['track-facts', artist, t?.title ?? ''],
+      queryFn: () => getTrackFacts({ data: { artist, title: t?.title ?? '' } }),
+      staleTime: Infinity,
+      retry: 1,
+    }
+  }
+  const trackFacts = useQuery({
+    ...trackFactsQuery(playing),
+    enabled: !!playing && !notes.isPending,
+  })
+  const nextTrack = playing
+    ? follower.sides.flatMap((side) => side.tracks)[playing.index + 1]
+    : undefined
+  useEffect(() => {
+    if (nextTrack && !notes.isPending)
+      void qc.prefetchQuery(trackFactsQuery(nextTrack))
+    // trackFactsQuery is rebuilt every render; the track is what matters.
+  }, [nextTrack?.index, notes.isPending])
+
+  const songPraise = trackFacts.data?.praise ?? []
+  const albumPraise = withoutRepeats(notes.data?.praise ?? [], songPraise)
 
   if (stand)
     return (
       <StandMode
         record={record}
         follower={follower}
-        praise={notes.data?.praise ?? []}
+        praise={[...songPraise, ...albumPraise]}
         onExit={() => setStand(false)}
       />
     )
@@ -186,11 +227,13 @@ export function ListeningRoom({
         </aside>
 
         <main className="min-w-0 space-y-12">
-          {follower.position?.state === 'playing' && (
+          {playing && (
             <TrackSection
-              track={follower.position.track}
+              track={playing}
               notes={trackNotes}
-              loading={notes.isPending}
+              facts={trackFacts.data}
+              albumCredits={notes.data?.credits ?? []}
+              loading={notes.isPending || trackFacts.isPending}
             />
           )}
           {follower.position?.state === 'finished' &&
@@ -205,7 +248,11 @@ export function ListeningRoom({
             </p>
           ) : (
             <>
-              <AlbumSection record={record} notes={notes.data} />
+              <AlbumSection
+                record={record}
+                notes={notes.data}
+                praise={albumPraise}
+              />
               <ArtistSection notes={notes.data} />
               <CreditsSection notes={notes.data} />
             </>
@@ -215,7 +262,7 @@ export function ListeningRoom({
             shelf.upNext.length > 0 && (
               <UpNext shelf={shelf} onPlayNext={onPlayNext} />
             )}
-          <Sources record={record} notes={notes.data} />
+          <Sources record={record} notes={notes.data} track={trackFacts.data} />
         </main>
       </div>
     </div>
@@ -554,11 +601,50 @@ function Paragraphs({ text, className }: { text: string; className?: string }) {
   )
 }
 
+/** Lead paragraphs shown before the rest is folded: the later ones mostly recap the charts and awards. */
+const LEAD_PARAGRAPHS = 2
+
+/** The first part of `text`, with the rest behind a fold titled `more`. */
+function Folded({
+  text,
+  keep,
+  more,
+  className,
+}: {
+  text: string
+  keep: number
+  more: string
+  className?: string
+}) {
+  const paragraphs = text.split(/\n+/).filter((p) => p.trim())
+  const rest = paragraphs.slice(keep)
+  return (
+    <>
+      <Paragraphs
+        text={paragraphs.slice(0, keep).join('\n')}
+        className={className}
+      />
+      {rest.length > 0 && (
+        <details className="group rounded-lg border bg-card/50">
+          <summary className="cursor-pointer px-3 py-2 text-sm font-medium select-none">
+            {more}
+          </summary>
+          <Paragraphs text={rest.join('\n')} className="px-3 pb-3 text-sm" />
+        </details>
+      )}
+    </>
+  )
+}
+
 /** Wikipedia's lead, then the longer sections folded away. */
 function WikiBlock({ page }: { page: WikiPage }) {
   return (
     <>
-      <Paragraphs text={page.summary} />
+      <Folded
+        text={page.summary}
+        keep={LEAD_PARAGRAPHS}
+        more="More from the introduction"
+      />
       {page.sections.map((s) => (
         <details key={s.heading} className="group rounded-lg border bg-card/50">
           <summary className="cursor-pointer px-3 py-2 text-sm font-medium select-none">
@@ -580,17 +666,164 @@ function WikiBlock({ page }: { page: WikiPage }) {
   )
 }
 
+/** Names compared loosely: "Ed O’Brien" and "Ed O'Brien" are one person. */
+const nameKey = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+
+/** Is each of `names` already credited under a role matching `role`? */
+function allCredited(
+  names: string[],
+  groups: CreditGroup[],
+  role: RegExp,
+): boolean {
+  const credited = groups
+    .filter((g) => role.test(g.role))
+    .flatMap((g) => g.names.map(nameKey))
+  return (
+    names.length > 0 &&
+    names.every((n) =>
+      credited.some((c) => c.includes(nameKey(n)) || nameKey(n).includes(c)),
+    )
+  )
+}
+
+/** "1.2M", "48K". */
+const compact = (n: number) =>
+  new Intl.NumberFormat('en', {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(n)
+
+/** "16 Dec 2025". */
+const showDate = (iso: string) =>
+  new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+
+function listenersFact(stats: Popularity | null | undefined): Fact | null {
+  if (!stats) return null
+  return {
+    text: `${compact(stats.listeners)} listeners · ${compact(stats.plays)} plays`,
+    note: 'on Last.fm',
+    href: stats.url || undefined,
+  }
+}
+
+function liveFact(live: LiveTrack | null | undefined): Fact | null {
+  if (!live) return null
+  const last = live.last
+  if (!live.played) return { text: `Not played at their last ${live.of} shows` }
+  return {
+    text:
+      live.played === live.of
+        ? `Played at every one of their last ${live.of} shows`
+        : `Played at ${live.played} of their last ${live.of} shows`,
+    note: last ? `last on ${showDate(last.date)}, ${last.place}` : undefined,
+  }
+}
+
+type Fact = { text: string; note?: string; href?: string }
+
+/** A row of short facts and numbers, under a section's title. */
+function Facts({ facts }: { facts: Array<Fact | null> }) {
+  const shown = facts.filter((f): f is Fact => !!f)
+  if (!shown.length) return null
+  return (
+    <ul className="flex flex-wrap gap-1.5">
+      {shown.map((f) => {
+        const body = (
+          <>
+            <span className="font-medium">{f.text}</span>
+            {f.note && <span className="text-muted-foreground"> {f.note}</span>}
+          </>
+        )
+        return (
+          <li
+            key={f.text}
+            className="rounded-full border bg-card/60 px-3 py-1 text-xs"
+          >
+            {f.href ? (
+              <a
+                href={f.href}
+                target="_blank"
+                rel="noreferrer"
+                className="hover:underline"
+              >
+                {body}
+              </a>
+            ) : (
+              body
+            )}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+/** A source credit under a block of text: "Genius ↗". */
+function SourceLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+    >
+      {label} <ExternalLink className="size-3" />
+    </a>
+  )
+}
+
 function TrackSection({
   track,
   notes,
+  facts,
+  albumCredits,
   loading,
 }: {
   track: TimedTrack
   notes: LinerNotes['tracks'][number] | undefined
+  facts: TrackFacts | undefined
+  /** Credited album-wide: not said again for each song. */
+  albumCredits: CreditGroup[]
   loading: boolean
 }) {
+  const genius = facts?.genius
+  const credits = [...(notes?.credits ?? [])]
+  const allCredits = [...albumCredits, ...credits]
+  // Genius fills in the writers and producers Discogs doesn't name.
+  if (
+    genius?.writers.length &&
+    !allCredits.some((g) => /writ|compos|lyric/i.test(g.role))
+  )
+    credits.push({ role: 'Written by', names: genius.writers })
+  if (
+    genius?.producers.length &&
+    !allCredited(genius.producers, allCredits, /^produce/i)
+  )
+    credits.push({ role: 'Produced by', names: genius.producers })
+  // The album's sentences about the song add little next to its own story.
+  const mentions = facts?.story ? [] : (notes?.mentions ?? [])
+  const stats = [
+    listenersFact(facts?.lastfm),
+    liveFact(notes?.live),
+    genius?.recordedAt ? { text: `Recorded at ${genius.recordedAt}` } : null,
+  ]
   const hasAny =
-    notes && (notes.mentions.length || notes.article || notes.credits.length)
+    !!facts?.story ||
+    mentions.length > 0 ||
+    credits.length > 0 ||
+    (facts?.praise.length ?? 0) > 0 ||
+    (genius?.connections.length ?? 0) > 0 ||
+    stats.some(Boolean)
   return (
     <Section kicker={`On the platter · ${track.position}`} title={track.title}>
       {loading ? (
@@ -601,7 +834,24 @@ function TrackSection({
         </p>
       ) : (
         <>
-          {notes.mentions.map((m) => (
+          <Facts facts={stats} />
+          {facts && facts.praise.length > 0 && (
+            <Highlights praise={facts.praise} />
+          )}
+          {facts?.story && (
+            <div className="space-y-2">
+              <Paragraphs text={facts.story.text} />
+              <SourceLink
+                href={facts.story.url}
+                label={
+                  facts.story.source === 'Wikipedia' && facts.wiki
+                    ? `Wikipedia: ${facts.wiki.title}`
+                    : facts.story.source
+                }
+              />
+            </div>
+          )}
+          {mentions.map((m) => (
             <blockquote
               key={m}
               className="border-l-2 border-record-1 pl-3 leading-relaxed"
@@ -609,21 +859,32 @@ function TrackSection({
               {m}
             </blockquote>
           ))}
-          {notes.article && (
-            <div className="rounded-xl border bg-card/60 p-4">
-              <Paragraphs text={notes.article.summary} className="text-sm" />
-              <a
-                href={notes.article.url}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-              >
-                Wikipedia: {notes.article.title}{' '}
-                <ExternalLink className="size-3" />
-              </a>
-            </div>
+          {genius && genius.connections.length > 0 && (
+            <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+              {genius.connections.map((c) => (
+                <div key={c.label}>
+                  <dt className="text-xs text-muted-foreground">{c.label}</dt>
+                  <dd>
+                    {c.songs.length ? (
+                      <>
+                        {c.songs.join(', ')}
+                        {c.more > 0 && (
+                          <span className="text-muted-foreground">
+                            {' '}
+                            and {c.more} more
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      // Only lesser-known ones: a count says enough.
+                      `${c.more} ${c.label === 'Covered by' ? (c.more === 1 ? 'artist' : 'artists') : c.more === 1 ? 'song' : 'songs'}`
+                    )}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           )}
-          {notes.credits.length > 0 && <Credits groups={notes.credits} />}
+          {credits.length > 0 && <Credits groups={credits} />}
         </>
       )}
     </Section>
@@ -633,35 +894,59 @@ function TrackSection({
 function AlbumSection({
   record,
   notes,
+  praise,
 }: {
   record: CollectionRecord
   notes: LinerNotes
+  /** The album's praise, less what the song playing already shows. */
+  praise: Praise[]
 }) {
-  if (!notes.wiki.album && !notes.notes && !notes.albumFacts) return null
   const facts = notes.albumFacts
-  // Laid out like the credits: a label over each value.
+  // Laid out like the credits: a label over each value. The producers and
+  // studios go when the credits name them anyway; the length is in the header.
   const factGroups: CreditGroup[] = facts
     ? [
         { role: 'Recorded', names: facts.recorded },
         {
           role: facts.studios.length > 1 ? 'Studios' : 'Studio',
-          names: facts.studios,
+          names: allCredited(facts.studios, notes.companies, /record|studio/i)
+            ? []
+            : facts.studios,
         },
         {
           role: facts.producers.length > 1 ? 'Producers' : 'Producer',
-          names: facts.producers,
+          names: allCredited(facts.producers, notes.credits, /^produce/i)
+            ? []
+            : facts.producers,
         },
-        { role: 'Length', names: facts.length ? [facts.length] : [] },
       ].filter((g) => g.names.length)
     : []
+  if (
+    !notes.wiki.album &&
+    !notes.notes &&
+    !factGroups.length &&
+    !praise.length &&
+    !notes.lastfm
+  )
+    return null
   return (
     <Section kicker="The record" title={record.title}>
+      <Facts facts={[listenersFact(notes.lastfm)]} />
+      {praise.length > 0 && <Highlights praise={praise} />}
       {factGroups.length > 0 && <Credits groups={factGroups} />}
       {notes.wiki.album && <WikiBlock page={notes.wiki.album} />}
       {notes.notes && (
         <div className="rounded-xl border bg-card/60 p-4">
           <p className="kicker mb-2">Notes on this pressing (Discogs)</p>
-          <Paragraphs text={notes.notes} className="text-sm" />
+          <div className="space-y-2">
+            {/* Often runs to catalogue numbers and publishing lines. */}
+            <Folded
+              text={notes.notes}
+              keep={1}
+              more="All the pressing notes"
+              className="text-sm"
+            />
+          </div>
         </div>
       )}
     </Section>
@@ -671,21 +956,51 @@ function AlbumSection({
 function ArtistSection({ notes }: { notes: LinerNotes }) {
   const a = notes.artist
   if (!a && !notes.wiki.artist) return null
-  const members = a?.members ?? []
+  // Chips only add something when the summary doesn't name everyone
+  // already ("Phil Selway" is named as "Philip Selway").
+  const words = nameKey(notes.wiki.artist?.summary ?? a?.profile ?? '').split(
+    ' ',
+  )
+  const named = (name: string) =>
+    nameKey(name)
+      .split(' ')
+      .every((t) => words.some((w) => w.startsWith(t)))
+  const members = (a?.members ?? []).every((m) => named(m.name))
+    ? []
+    : (a?.members ?? [])
+  const facts = a?.facts
+  const last: Show | null | undefined = a?.live?.last
   return (
     <Section kicker="The artist" title={a?.name ?? notes.wiki.artist?.title}>
+      <Facts
+        facts={[
+          facts?.origin ? { text: `From ${facts.origin}` } : null,
+          facts?.yearsActive
+            ? { text: facts.yearsActive, note: 'active' }
+            : null,
+          facts?.genres.length ? { text: facts.genres.join(', ') } : null,
+          listenersFact(a?.lastfm),
+          a?.live
+            ? {
+                text: `${a.live.shows.toLocaleString('en-US')} shows`,
+                note: last
+                  ? `on setlist.fm · latest ${showDate(last.date)}, ${last.place}${last.tour ? ` (${last.tour})` : ''}`
+                  : 'on setlist.fm',
+                href: a.live.url,
+              }
+            : null,
+        ]}
+      />
+      {/* A summary, not the whole article: the record comes first. */}
       {notes.wiki.artist ? (
         <WikiBlock page={notes.wiki.artist} />
       ) : (
-        a?.profile && <Paragraphs text={a.profile} />
-      )}
-      {notes.wiki.artist && a?.profile && (
-        <details className="rounded-lg border bg-card/50">
-          <summary className="cursor-pointer px-3 py-2 text-sm font-medium select-none">
-            Discogs profile
-          </summary>
-          <Paragraphs text={a.profile} className="px-3 pb-3 text-sm" />
-        </details>
+        a?.profile && (
+          <>
+            <Paragraphs text={a.profile} />
+            {a.discogsUrl && <SourceLink href={a.discogsUrl} label="Discogs" />}
+          </>
+        )
       )}
       {members.length > 0 && (
         <div>
@@ -708,6 +1023,128 @@ function ArtistSection({ notes }: { notes: LinerNotes }) {
         </div>
       )}
     </Section>
+  )
+}
+
+// ---------- praise ----------
+
+/** Praise compared without "for “Get Lucky”": the album's award for a single is the single's too. */
+const praiseKey = (p: Praise) => nameKey(p.text.replace(/ for “[^”]*”/, ''))
+
+/** The album's praise less what the song playing already shows. */
+function withoutRepeats(album: Praise[], song: Praise[]): Praise[] {
+  const said = new Set(song.map(praiseKey))
+  return album.filter((p) => !said.has(praiseKey(p)))
+}
+
+/** Critics' lists and ratings named per card; the rest of the list is stand mode's. */
+const MAX_CARD_LINES = 3
+
+type Card = {
+  label: string
+  /** Each on its own line, set large. */
+  lines: string[]
+  /** Smaller, under the lines. */
+  detail?: string
+  quote?: boolean
+}
+
+/** "Won · Album of the Year, Grammy Awards 2014" → won, "Album of the Year", "2014". */
+function awardParts(p: Praise) {
+  const won = p.text.startsWith('Won')
+  const rest = p.text.replace(/^(Won|Nominated) · /, '')
+  const at = rest.lastIndexOf(`, ${p.by}`)
+  const tail = at >= 0 ? rest.slice(at + 2) : rest
+  return {
+    won,
+    category: at >= 0 ? rest.slice(0, at) : null,
+    year: /\b\d{4}$/.exec(tail)?.[0] ?? '',
+  }
+}
+
+/**
+ * The praise as a handful of cards: a night of five Grammys is one card,
+ * the chart peaks another, and only the best quote. Stand mode shows every
+ * piece, one at a time.
+ */
+function highlightCards(praise: Praise[]): Card[] {
+  const cards: Card[] = []
+  const awards = new Map<string, Card>()
+  for (const p of praise.filter((x) => x.kind === 'award')) {
+    const { won, category, year } = awardParts(p)
+    const head = `${won ? 'Won' : 'Nominated'} · ${p.by}${year ? ` ${year}` : ''}`
+    const card = awards.get(head) ?? { label: 'Awards', lines: [head] }
+    if (category)
+      card.detail = card.detail ? `${card.detail} · ${category}` : category
+    if (!awards.has(head)) cards.push(card)
+    awards.set(head, card)
+  }
+  const ofKind = (kind: Praise['kind']) => praise.filter((p) => p.kind === kind)
+  const lists = ofKind('accolade')
+  if (lists.length)
+    cards.push({
+      label: "Critics' lists",
+      lines: lists.slice(0, MAX_CARD_LINES).map((p) => `${p.text} — ${p.by}`),
+    })
+  for (const p of ofKind('certification'))
+    cards.push({ label: 'Certified', lines: p.text.split(' · '), detail: p.by })
+  const charts = ofKind('chart')
+  if (charts.length)
+    cards.push({
+      label: 'Chart peak',
+      lines: charts.map((p) => p.text.replace(' · ', ' in ')),
+      detail: charts[0].by,
+    })
+  const quote = ofKind('quote')[0] as Praise | undefined
+  if (quote)
+    cards.push({
+      label: 'Reviews',
+      lines: [quote.text],
+      detail: `${quote.by}${quote.score ? ` · ${quote.score}` : ''}`,
+      quote: true,
+    })
+  const ratings = ofKind('rating')
+  if (ratings.length)
+    cards.push({
+      label: 'Rated',
+      lines: ratings.slice(0, MAX_CARD_LINES).map((p) => `${p.text} · ${p.by}`),
+    })
+  return cards
+}
+
+/** Awards, lists, charts and the best review, as a few cards. */
+function Highlights({ praise }: { praise: Praise[] }) {
+  return (
+    <ul className="grid gap-2 sm:grid-cols-2">
+      {highlightCards(praise).map((c) => (
+        <li
+          key={`${c.label}${c.lines[0]}`}
+          className={cn(
+            'rounded-xl border bg-card/60 p-3',
+            c.quote && 'sm:col-span-2',
+          )}
+        >
+          <p className="kicker mb-1">{c.label}</p>
+          {c.quote ? (
+            <blockquote className="font-display text-lg leading-snug italic">
+              “{c.lines[0]}”
+            </blockquote>
+          ) : (
+            c.lines.map((l) => (
+              <p key={l} className="text-sm leading-snug font-medium">
+                {l}
+              </p>
+            ))
+          )}
+          {c.detail && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {c.quote ? '— ' : ''}
+              {c.detail}
+            </p>
+          )}
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -878,10 +1315,21 @@ function UpNext({
 function Sources({
   record,
   notes,
+  track,
 }: {
   record: CollectionRecord
   notes?: LinerNotes
+  track?: TrackFacts
 }) {
+  const used = [
+    (notes?.wiki.album || notes?.wiki.artist || track?.wiki) &&
+      'Wikipedia (text under CC BY-SA 4.0)',
+    track?.genius && 'Genius',
+    (notes?.lastfm || notes?.artist?.lastfm || track?.lastfm) && 'Last.fm',
+    notes?.artist?.live && 'setlist.fm',
+    notes?.streaming &&
+      `track times from ${notes.streaming.source === 'spotify' ? 'Spotify' : 'Apple Music'}`,
+  ].filter(Boolean)
   return (
     <footer className="border-t pt-4 text-xs text-muted-foreground">
       Sources:{' '}
@@ -893,13 +1341,7 @@ function Sources({
       >
         Discogs
       </a>
-      {notes?.wiki.album || notes?.wiki.artist
-        ? ', Wikipedia (text under CC BY-SA 4.0)'
-        : ''}
-      {notes?.streaming
-        ? `, track times from ${notes.streaming.source === 'spotify' ? 'Spotify' : 'Apple Music'}`
-        : ''}
-      .
+      {used.map((u) => `, ${u}`).join('')}.
     </footer>
   )
 }
@@ -912,9 +1354,7 @@ function NotesSkeleton() {
       <Skeleton className="h-4 w-full" />
       <Skeleton className="h-4 w-full" />
       <Skeleton className="h-4 w-4/5" />
-      <p className="text-xs text-muted-foreground">
-        Pulling the liner notes from Discogs and Wikipedia…
-      </p>
+      <p className="text-xs text-muted-foreground">Pulling the liner notes…</p>
     </div>
   )
 }
@@ -954,7 +1394,12 @@ function PraiseFigure({ praise }: { praise: Praise }) {
   const label = PRAISE_LABEL[praise.kind]
   return (
     <figure>
-      {label && <p className="kicker mb-2">{label}</p>}
+      {label && (
+        <p className="kicker mb-2">
+          {label}
+          {praise.song && ` · ${praise.song}`}
+        </p>
+      )}
       <div
         className={cn(
           'font-display leading-snug font-semibold text-balance',
@@ -1072,6 +1517,9 @@ function StandMode({
     const id = setInterval(() => setPraiseIdx((i) => i + 1), PRAISE_MS)
     return () => clearInterval(id)
   }, [praiseIdx])
+  // A new song starts with its own praise, which comes first in the list.
+  const trackIdx = p?.state === 'playing' ? p.track.index : -1
+  useEffect(() => setPraiseIdx(0), [trackIdx])
   const shown = praise.length ? praise[praiseIdx % praise.length] : null
   const textBox = useRef<HTMLDivElement>(null)
   const textInner = useRef<HTMLDivElement>(null)

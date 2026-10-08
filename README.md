@@ -67,6 +67,17 @@ TanStack Query · Supabase (Postgres) · Vercel.
   high marks are kept. MusicBrainz allows one request a second, so its and
   Wikidata's answers are cached per master (or release) for 14 days in
   `record_facts_cache`. Every source fails soft.
+  The room reads track first, then album, then artist, and says each fact
+  once. The track playing is looked up as it comes on
+  (`src/lib/track-facts.server.ts`): its story, recording place, samples and
+  covers from Genius (`src/lib/genius.server.ts`, never lyrics), its own chart
+  peaks and certifications from its Wikipedia article, and its Last.fm
+  listeners (`src/lib/lastfm.server.ts`). setlist.fm
+  (`src/lib/setlistfm.server.ts`) gives how often each track came up in the
+  artist's last 40 shows; it allows two requests a second and 1,440 a day, so
+  each artist's shows are kept for six hours. The artist gets a short summary
+  and infobox facts (origin, years active, genres), not the whole article.
+  Genius, setlist.fm and Last.fm each switch off without their key.
 - **Friends** (`src/lib/friends*.ts`, `src/routes/friends.*`): one-way
   follows by Discogs username. Usernames not on Spinsight yet stay pending
   until that person signs in (invite links make them follow you back). The

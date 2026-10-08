@@ -32,6 +32,18 @@ export const env = {
     const secret = process.env.SPOTIFY_CLIENT_SECRET
     return id && secret ? { id, secret } : null
   },
+  /** Genius client access token: song stories, samples and covers. */
+  get geniusToken() {
+    return process.env.GENIUS_ACCESS_TOKEN || null
+  },
+  /** setlist.fm API key: what an artist plays live. */
+  get setlistfmKey() {
+    return process.env.SETLISTFM_API_KEY || null
+  },
+  /** Last.fm API key: listener and play counts. */
+  get lastfmKey() {
+    return process.env.LASTFM_API_KEY || null
+  },
   get cronSecret() {
     return process.env.CRON_SECRET ?? null
   },

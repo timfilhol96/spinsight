@@ -10,21 +10,34 @@ import type {
   OAuthToken,
 } from '#/lib/discogs.server'
 import type { LinerNotes, WikiPage } from '#/lib/liner-notes'
+import { lastfmAlbum, lastfmArtist } from '#/lib/lastfm.server'
 import {
   albumFactsFrom,
+  artistFactsFrom,
   communityRating,
   praiseFrom,
 } from '#/lib/praise.server'
 import { recordFactsFor } from '#/lib/record-facts.server'
 import type { RecordFacts } from '#/lib/record-facts.server'
+import { liveHistory, liveTrack } from '#/lib/setlistfm.server'
 import { trackSeconds } from '#/lib/track-follower'
+import {
+  bareTitle,
+  findWikiPage,
+  wikiPage,
+  wikiSearch,
+  wikiText,
+} from '#/lib/wikipedia.server'
+import type { WikiLang } from '#/lib/wikipedia.server'
 
 // Reading material for the listening room: credits, notes and the artist bio
-// from Discogs, background from Wikipedia, and streaming track lengths so the
-// track follower has timings when Discogs has none. The album's article is
-// found through MusicBrainz → Wikidata when they know the record (exact), and
-// by title search otherwise. The only database use is the shared cache of
-// those lookups (record-facts.server.ts); every source fails soft.
+// from Discogs, background from Wikipedia, listeners from Last.fm, live shows
+// from setlist.fm, and streaming track lengths so the track follower has
+// timings when Discogs has none. The album's article is found through
+// MusicBrainz → Wikidata when they know the record (exact), and by title
+// search otherwise. The only database use is the shared cache of those
+// lookups (record-facts.server.ts); every source fails soft. What's known
+// about each song is looked up when it plays (track-facts.server.ts).
 
 type Credit = {
   name: string
@@ -102,148 +115,29 @@ function groupCredits(credits: Credit[]) {
 
 // ---------- Wikipedia ----------
 
-const WIKI_UA = 'Spinsight/0.1 (https://spinsight-app.vercel.app)'
-
-/** A Wikipedia language code: "en", "fr", "de"… */
-type WikiLang = string
-
-async function wikiApi<T>(
-  params: Record<string, string>,
-  lang: WikiLang = 'en',
-): Promise<T | null> {
-  const url = `https://${lang}.wikipedia.org/w/api.php?${new URLSearchParams({
-    format: 'json',
-    formatversion: '2',
-    origin: '*',
-    ...params,
-  })}`
-  try {
-    const res = await fetch(url, { headers: { 'User-Agent': WIKI_UA } })
-    return res.ok ? ((await res.json()) as T) : null
-  } catch {
-    return null
-  }
-}
-
-async function wikiSearch(query: string, limit = 5): Promise<string[]> {
-  const data = await wikiApi<{ query?: { search?: Array<{ title: string }> } }>(
-    {
-      action: 'query',
-      list: 'search',
-      srsearch: query,
-      srlimit: String(limit),
-    },
-  )
-  return (data?.query?.search ?? []).map((s) => s.title)
-}
-
-/** Sections worth reading while the record plays; the rest is tables and refs. */
-const READABLE =
-  /^(background|history|recording|production|writing|composition|music|lyrics|themes|concept|artwork|packaging|release|legacy|origins?|formation|early|career|style|influences|musical style|contexte|genèse|historique|enregistrement|écriture|musique|paroles|thèmes|pochette|sortie|postérité|héritage|hintergrund|geschichte|entstehung|aufnahme|produktion|musik|texte|veröffentlichung|antecedentes|historia|grabación|producción|composición|música|letras|lanzamiento|legado|storia|registrazione|produzione|composizione|musica|testi|pubblicazione|história|gravação|produção|composição|lançamento|achtergrond|geschiedenis|opname|productie|muziek|teksten|uitgave)/i
-
-async function wikiPage(
-  title: string,
-  lang: WikiLang = 'en',
-): Promise<WikiPage | null> {
-  const data = await wikiApi<{
-    query?: {
-      pages?: Array<{
-        title: string
-        missing?: boolean
-        description?: string
-        extract?: string
-        fullurl?: string
-      }>
-    }
-  }>(
-    {
-      action: 'query',
-      prop: 'extracts|description|info',
-      inprop: 'url',
-      explaintext: '1',
-      redirects: '1',
-      titles: title,
-    },
-    lang,
-  )
-  const page = data?.query?.pages?.[0]
-  if (!page || page.missing || !page.extract) return null
-  // The plain-text extract marks headings as "== Heading ==".
-  const chunks = page.extract.split(/\n\n*(==+) ?(.+?) ?==+\n/)
-  const summary = chunks[0].trim()
-  const sections: WikiPage['sections'] = []
-  // Subsections ("2011–2012: Formation") count when their section does.
-  let parentReadable = false
-  for (let i = 1; i + 2 < chunks.length; i += 3) {
-    const level = chunks[i].length
-    const heading = chunks[i + 1].trim()
-    const text = chunks[i + 2].trim()
-    if (level === 2) parentReadable = READABLE.test(heading)
-    const readable =
-      level === 2 ? parentReadable : level === 3 && parentReadable
-    if (heading && text && (readable || READABLE.test(heading)))
-      sections.push({ heading, text })
-  }
-  return {
-    title: page.title,
-    lang,
-    url:
-      page.fullurl ??
-      `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(page.title.replace(/ /g, '_'))}`,
-    description: page.description ?? null,
-    summary,
-    sections,
-  }
-}
-
-/** Raw wikitext, for what the plain extract drops: score boxes and tables. */
-async function wikiText(
-  title: string,
-  lang: WikiLang = 'en',
-): Promise<string | null> {
-  const data = await wikiApi<{ parse?: { wikitext?: string } }>(
-    {
-      action: 'parse',
-      page: title,
-      prop: 'wikitext',
-      redirects: '1',
-    },
-    lang,
-  )
-  return data?.parse?.wikitext ?? null
-}
-
-/** Page title without the disambiguator: "Cry (Cigarettes After Sex album)" → "Cry". */
-const bareTitle = (t: string) => t.replace(/\s*\(.*\)\s*$/, '')
+/** Abbreviations a sentence doesn't end on: "St. Catherine's", "U.S. tour". */
+const NOT_AN_END = /\b(St|Mr|Mrs|Ms|Dr|Jr|Sr|vs|No|Vol|feat|ft|[A-Z]\.[A-Z])\.$/
 
 /**
- * Finds the Wikipedia page for something only when it's clearly the right
- * one: the title must match and the page must mention the artist. Search
- * ranking alone is too loose (a small band's album returns its label).
+ * The first few sentences of the first paragraph, under `max` characters
+ * (but at least one): the artist's summary, where the full article is too
+ * much to read over one side of a record.
  */
-async function findWikiPage(
-  name: string,
-  artist: string,
-  query: string,
-  looksRight: (p: WikiPage) => boolean,
-): Promise<WikiPage | null> {
-  const want = matchKey(name)
-  const titles = (await wikiSearch(query)).filter(
-    (t) => matchKey(bareTitle(t)) === want,
-  )
-  const artistKey = matchKey(artist)
-  for (const t of titles.slice(0, 3)) {
-    const page = await wikiPage(t)
-    if (
-      page &&
-      matchKey(`${page.description ?? ''} ${page.summary}`).includes(
-        artistKey,
-      ) &&
-      looksRight(page)
-    )
-      return page
+export function briefly(text: string, max = 480): string {
+  const first = text.split(/\n+/).find((p) => p.trim()) ?? ''
+  const sentences: string[] = []
+  for (const part of first.trim().split(/(?<=[.!?])\s+(?=[\p{Lu}"“(])/u)) {
+    const prev = sentences.length - 1
+    if (prev >= 0 && NOT_AN_END.test(sentences[prev]))
+      sentences[prev] += ` ${part}`
+    else sentences.push(part)
   }
-  return null
+  let out = sentences[0] ?? ''
+  for (const s of sentences.slice(1)) {
+    if (out.length + s.length + 1 > max) break
+    out += ` ${s}`
+  }
+  return out
 }
 
 /**
@@ -308,23 +202,23 @@ async function findArtistPage(
   return null
 }
 
-/** Sentences of an article that name the song in quotes: "…the single "Dopamine"…" (or «…», „…“). */
-function mentionsOf(song: string, pages: Array<WikiPage | null>): string[] {
+/** Sentences naming a song are kept to a few: the album section has the rest. */
+const MAX_MENTIONS = 3
+
+/** Sentences of the album's article that name the song in quotes: "…the single "Dopamine"…" (or «…», „…“). */
+function mentionsOf(song: string, page: WikiPage | null): string[] {
   const key = matchKey(song)
-  if (key.length < 2) return []
+  if (key.length < 2 || !page) return []
   const out: string[] = []
-  for (const page of pages) {
-    if (!page) continue
-    const text = [page.summary, ...page.sections.map((s) => s.text)].join('\n')
-    for (const sentence of text.split(/(?<=[.!?])\s+(?=[\p{Lu}"“«„])/u)) {
-      const quoted = [
-        ...sentence.matchAll(/["“«„]\s?([^"”»“]+?)\s?["”»“]/g),
-      ].map((m) => matchKey(m[1]))
-      if (quoted.includes(key) && !out.includes(sentence.trim()))
-        out.push(sentence.trim())
-    }
+  const text = [page.summary, ...page.sections.map((s) => s.text)].join('\n')
+  for (const sentence of text.split(/(?<=[.!?])\s+(?=[\p{Lu}"“«„])/u)) {
+    const quoted = [...sentence.matchAll(/["“«„]\s?([^"”»“]+?)\s?["”»“]/g)].map(
+      (m) => matchKey(m[1]),
+    )
+    if (quoted.includes(key) && !out.includes(sentence.trim()))
+      out.push(sentence.trim())
   }
-  return out.slice(0, 4)
+  return out.slice(0, MAX_MENTIONS)
 }
 
 // ---------- assembly ----------
@@ -375,16 +269,31 @@ export async function linerNotesFor(
         ).catch(() => null)
       : null
 
-  const [{ page: albumPage, lang: albumLang }, artistPage, streaming, facts] =
-    await Promise.all([
-      factsP.then((f) => albumArticle(f, release.title, artistName)),
-      artist ? findArtistPage(artistName, artist.urls ?? []) : null,
-      // Only needed when Discogs is missing track times.
-      tracks.every((t) => trackSeconds(t.duration) > 0)
-        ? null
-        : streamingLengths(artistName, release.title, tracks),
-      factsP,
-    ])
+  const [
+    { page: albumPage, lang: albumLang },
+    artistPage,
+    streaming,
+    facts,
+    albumStats,
+    artistStats,
+    live,
+  ] = await Promise.all([
+    factsP.then((f) => albumArticle(f, release.title, artistName)),
+    artist ? findArtistPage(artistName, artist.urls ?? []) : null,
+    // Only needed when Discogs is missing track times.
+    tracks.every((t) => trackSeconds(t.duration) > 0)
+      ? null
+      : streamingLengths(artistName, release.title, tracks),
+    factsP,
+    artist ? lastfmAlbum(artistName, release.title) : null,
+    artist ? lastfmArtist(artistName) : null,
+    artist
+      ? factsP
+          .then((f) => liveHistory(artistName, f?.artistMbid ?? null))
+          .catch(() => null)
+      : null,
+  ])
+  const artistWikitext = artistPage ? await wikiText(artistPage.title) : null
 
   // The praise and infobox parsers know English Wikipedia's templates, so
   // they read the English article when the one shown is in another language.
@@ -396,34 +305,19 @@ export async function linerNotesFor(
         ? await wikiText(albumPage.title, albumLang)
         : null
   // Comes with the release already fetched: no extra request.
-  const discogsRating = communityRating(
-    'Discogs',
-    release.community?.rating?.average,
-    release.community?.rating?.count,
-  )
-  const mbRating = communityRating(
-    'MusicBrainz',
-    facts?.musicbrainzRating?.average,
-    facts?.musicbrainzRating?.count,
-  )
-
-  // Song articles only exist for singles and famous tracks; look them up in
-  // parallel and keep the ones that clearly match.
-  const songPages = await Promise.all(
-    tracks.map((t) =>
-      findWikiPage(
-        t.title,
-        artistName,
-        `"${t.title}" ${artistName} song`,
-        // The description ("2015 single by DIIV") is the tell; an album's lead
-        // mentions its singles too.
-        (p) =>
-          /\b(song|single)\b/i.test(
-            p.description ?? p.summary.split(/\.\s/)[0],
-          ),
-      ),
-    ),
-  )
+  // One community rating is enough: the one more people voted in.
+  const [communityPraise] = [
+    {
+      source: 'Discogs',
+      ...release.community?.rating,
+    },
+    {
+      source: 'MusicBrainz',
+      ...facts?.musicbrainzRating,
+    },
+  ]
+    .sort((a, b) => (b.count ?? 0) - (a.count ?? 0))
+    .flatMap((r) => communityRating(r.source, r.average, r.count) ?? [])
 
   const notes: LinerNotes = {
     releaseId,
@@ -443,15 +337,28 @@ export async function linerNotesFor(
       ? {
           name: artistName,
           realName: artist.realname ?? null,
-          profile: artist.profile ? cleanDiscogsMarkup(artist.profile) : null,
+          profile: artist.profile
+            ? briefly(cleanDiscogsMarkup(artist.profile))
+            : null,
           members: (artist.members ?? []).map((m) => ({
             name: cleanArtistName(m.name),
             active: m.active,
           })),
           discogsUrl: artist.uri ?? null,
+          facts: artistWikitext ? artistFactsFrom(artistWikitext) : null,
+          lastfm: artistStats,
+          live: live
+            ? { shows: live.total, last: live.last, url: live.url }
+            : null,
         }
       : null,
-    wiki: { album: albumPage, artist: artistPage },
+    wiki: {
+      album: albumPage,
+      // Its lead, cut short: the room is about the record.
+      artist: artistPage
+        ? { ...artistPage, summary: briefly(artistPage.summary), sections: [] }
+        : null,
+    },
     albumFacts: albumWikitext ? albumFactsFrom(albumWikitext) : null,
     praise: [
       // Wikidata's awards still count when there's no article to read.
@@ -459,28 +366,28 @@ export async function linerNotesFor(
         awards: facts?.awards,
         certifications: facts?.certifications,
       }),
-      ...(discogsRating ? [discogsRating] : []),
-      ...(mbRating ? [mbRating] : []),
+      ...(communityPraise ? [communityPraise] : []),
     ],
-    tracks: tracks.map((t, i) => ({
-      position: t.position,
-      title: t.title,
-      credits: groupCredits([
-        ...(t.extraartists ?? []),
-        // Release-level credits scoped to tracks ("Vocals (A2, B1)").
-        ...credits.filter(
-          (c) => c.tracks && tracksInclude(c.tracks, t.position),
-        ),
-      ]).map((c) => ({ ...c, role: c.role.replace(/\s*\([^)]*\)$/, '') })),
-      mentions: mentionsOf(t.title, [albumPage, songPages[i]]),
-      article: songPages[i]
-        ? {
-            title: songPages[i].title,
-            url: songPages[i].url,
-            summary: songPages[i].summary,
-          }
-        : null,
-    })),
+    lastfm: albumStats,
+    tracks: tracks.map((t) => {
+      const own = t.artists?.[0] ? cleanArtistName(t.artists[0].name) : null
+      // On a split, another band's song isn't in this artist's setlists.
+      const byArtist = !own || matchKey(own) === matchKey(artistName)
+      return {
+        position: t.position,
+        title: t.title,
+        artist: byArtist ? null : own,
+        credits: groupCredits([
+          ...(t.extraartists ?? []),
+          // Release-level credits scoped to tracks ("Vocals (A2, B1)").
+          ...credits.filter(
+            (c) => c.tracks && tracksInclude(c.tracks, t.position),
+          ),
+        ]).map((c) => ({ ...c, role: c.role.replace(/\s*\([^)]*\)$/, '') })),
+        mentions: mentionsOf(t.title, albumPage),
+        live: byArtist ? liveTrack(live, t.title) : null,
+      }
+    }),
     streaming,
   }
   cache.set(releaseId, { at: Date.now(), notes })

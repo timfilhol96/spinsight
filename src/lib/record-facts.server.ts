@@ -6,8 +6,9 @@ import type { AwardFact, CertFact } from '#/lib/praise.server'
 import { db } from '#/lib/supabase.server'
 import { wikidataAlbum } from '#/lib/wikidata.server'
 
-// What MusicBrainz and Wikidata know about a record: its IDs there, its exact
-// Wikipedia articles, awards, certifications and the MusicBrainz rating. Resolving takes up to
+// What MusicBrainz and Wikidata know about a record: its IDs there (and its
+// artist's), its exact Wikipedia articles, awards, certifications and the
+// MusicBrainz rating. Resolving takes up to
 // four slow requests (MusicBrainz allows one a second), and none of it changes
 // often, so the answer is kept in the database for every server instance to
 // share, keyed by Discogs master: every pressing of an album shares it.
@@ -27,6 +28,8 @@ export type RecordFacts = {
   certifications: CertFact[]
   /** MusicBrainz community rating out of 5, before any threshold. */
   musicbrainzRating: { average: number; count: number } | null
+  /** The album artist's MusicBrainz ID (setlist.fm is keyed by it). */
+  artistMbid: string | null
 }
 
 type CacheRow = {
@@ -37,8 +40,12 @@ type CacheRow = {
   original_title: string | null
   enwiki_title: string | null
   frwiki_title: string | null
+  // Not only praise any more: the artist's MBID rides along, saving a migration.
   external_praise: Partial<
-    Pick<RecordFacts, 'awards' | 'certifications' | 'musicbrainzRating'>
+    Pick<
+      RecordFacts,
+      'awards' | 'certifications' | 'musicbrainzRating' | 'artistMbid'
+    >
   >
   fetched_at: string
 }
@@ -67,6 +74,7 @@ async function readCache(key: string): Promise<RecordFacts | null> {
       awards: data.external_praise.awards ?? [],
       certifications: data.external_praise.certifications ?? [],
       musicbrainzRating: data.external_praise.musicbrainzRating ?? null,
+      artistMbid: data.external_praise.artistMbid ?? null,
     }
   } catch {
     return null
@@ -89,6 +97,7 @@ async function writeCache(key: string, facts: RecordFacts): Promise<void> {
           awards: facts.awards,
           certifications: facts.certifications,
           musicbrainzRating: facts.musicbrainzRating,
+          artistMbid: facts.artistMbid,
         },
         fetched_at: new Date().toISOString(),
       } satisfies CacheRow)
@@ -137,6 +146,7 @@ async function resolve(
     awards: wd?.awards ?? [],
     certifications: wd?.certifications ?? [],
     musicbrainzRating: rg?.rating ?? null,
+    artistMbid: rg?.artistMbid ?? null,
   }
 }
 
