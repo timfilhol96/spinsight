@@ -98,7 +98,10 @@ function places(raw: string | null | undefined): string | null {
   return `${all.slice(0, 2).join(' & ')}${more > 0 ? ` and ${more} more` : ''}`
 }
 
-/** Whole paragraphs from the start, up to MAX_STORY characters. */
+/**
+ * Whole paragraphs from the start, up to MAX_STORY characters. A lead-in
+ * ("As he said:") goes with the quote after it, or not at all.
+ */
 function story(plain: string | undefined): string | null {
   const paragraphs = (plain ?? '')
     .split(/\n+/)
@@ -106,12 +109,20 @@ function story(plain: string | undefined): string | null {
     .filter(Boolean)
   // An empty description comes back as "?".
   if (!paragraphs.length || paragraphs.join('') === '?') return null
+  const units: string[][] = []
+  for (let i = 0; i < paragraphs.length; i++) {
+    const unit = [paragraphs[i]]
+    while (unit.at(-1)!.endsWith(':') && i + 1 < paragraphs.length)
+      unit.push(paragraphs[++i])
+    units.push(unit)
+  }
   const out: string[] = []
   let length = 0
-  for (const p of paragraphs) {
-    if (out.length && length + p.length > MAX_STORY) break
-    out.push(p)
-    length += p.length
+  for (const unit of units) {
+    const size = unit.reduce((n, p) => n + p.length, 0)
+    if (out.length && length + size > MAX_STORY) break
+    out.push(...unit)
+    length += size
   }
   return out.join('\n\n')
 }
