@@ -26,7 +26,7 @@ type SongRef = {
 type Hit = { type: string; result: SongRef & { id: number } }
 type Song = SongRef & {
   url: string
-  description?: { plain?: string }
+  description?: { dom?: DomNode }
   recording_location?: string | null
   writer_artists?: Artist[]
   producer_artists?: Artist[]
@@ -98,23 +98,84 @@ function places(raw: string | null | undefined): string | null {
   return `${all.slice(0, 2).join(' & ')}${more > 0 ? ` and ${more} more` : ''}`
 }
 
+/** Genius's description as a tree, asked for with text_format=dom. */
+type DomNode = string | { tag: string; children?: DomNode[] }
+
+const textOf = (n: DomNode): string =>
+  typeof n === 'string'
+    ? n
+    : n.tag === 'br'
+      ? '\n'
+      : (n.children ?? []).map(textOf).join('')
+
+const hasTag = (n: DomNode, tags: RegExp): boolean =>
+  typeof n !== 'string' &&
+  (tags.test(n.tag) || (n.children ?? []).some((c) => hasTag(c, tags)))
+
+/** Pictures and players, which the story can't show. */
+const MEDIA = /^(img|iframe|video|audio|embed|object)$/
+const CAPTION = /^(small|center|figcaption)$/
+
+/** Does `text` end on a whole sentence, before any "- Source" under a quote? */
+const endsSentence = (text: string) =>
+  /[.!?…"”’')\]]$/.test(text.replace(/\n[-–—].*$/, ''))
+
+/** A caption, set small or centred under a picture. */
+const isCaption = (n: DomNode) =>
+  typeof n !== 'string' &&
+  (n.children ?? []).every((c) =>
+    typeof c === 'string' ? !c.trim() : hasTag(c, CAPTION),
+  )
+
 /**
- * Whole paragraphs from the start, up to MAX_STORY characters. A lead-in
- * ("As he said:") goes with the quote after it, or not at all.
+ * The description's paragraphs, each with whether it ends a sentence.
+ * Pictures, players (a bare link to a video is shown as one) and their
+ * captions are left out, and so is a lead-in to one ("Watch it below:").
  */
-function story(plain: string | undefined): string | null {
-  const paragraphs = (plain ?? '')
-    .split(/\n+/)
-    .map((p) => p.trim())
-    .filter(Boolean)
+function paragraphsOf(root: DomNode): Array<{ text: string; ends: boolean }> {
+  const out: Array<{ text: string; ends: boolean }> = []
+  const visit = (n: DomNode) => {
+    // A quote or list: one paragraph per paragraph or item in it.
+    if (
+      typeof n !== 'string' &&
+      /^(blockquote|ul|ol|div)$/.test(n.tag) &&
+      n.children?.some((c) => typeof c !== 'string' && /^(p|li)$/.test(c.tag))
+    ) {
+      n.children.forEach(visit)
+      return
+    }
+    const text = textOf(n)
+      .split('\n')
+      .map((l) => l.replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
+      .join('\n')
+    if ((hasTag(n, MEDIA) && !text) || /^https?:\/\/\S+$/.test(text)) {
+      if (out.at(-1)?.text.endsWith(':')) out.pop()
+    } else if (text && !isCaption(n)) {
+      out.push({ text, ends: endsSentence(text) })
+    }
+  }
+  ;(typeof root === 'string' ? [root] : (root.children ?? [])).forEach(visit)
+  return out
+}
+
+/**
+ * Whole paragraphs from the start, up to MAX_STORY characters. A paragraph
+ * that stops short of a full stop ("As he said:", "…and said") goes with
+ * the one after it, or not at all.
+ */
+function story(root: DomNode | undefined): string | null {
+  const paragraphs = root ? paragraphsOf(root) : []
   // An empty description comes back as "?".
-  if (!paragraphs.length || paragraphs.join('') === '?') return null
+  if (!paragraphs.length || paragraphs.map((p) => p.text).join('') === '?')
+    return null
   const units: string[][] = []
   for (let i = 0; i < paragraphs.length; i++) {
-    const unit = [paragraphs[i]]
-    while (unit.at(-1)!.endsWith(':') && i + 1 < paragraphs.length)
-      unit.push(paragraphs[++i])
-    units.push(unit)
+    const unit = [paragraphs[i].text]
+    while (!paragraphs[i].ends && i + 1 < paragraphs.length)
+      unit.push(paragraphs[++i].text)
+    // Nothing follows to finish the sentence.
+    if (paragraphs[i].ends || unit.length > 1) units.push(unit)
   }
   const out: string[] = []
   let length = 0
@@ -124,7 +185,7 @@ function story(plain: string | undefined): string | null {
     out.push(...unit)
     length += size
   }
-  return out.join('\n\n')
+  return out.length ? out.join('\n\n') : null
 }
 
 /**
@@ -148,7 +209,7 @@ export async function geniusSong(
   )
   if (!hit) return null
   const data = await geniusGet<{ song: Song }>(
-    `/songs/${hit.result.id}?text_format=plain`,
+    `/songs/${hit.result.id}?text_format=dom`,
   )
   const song = data?.song
   if (!song) return null
@@ -180,7 +241,7 @@ export async function geniusSong(
   })
   return {
     url: song.url,
-    story: story(song.description?.plain),
+    story: story(song.description?.dom),
     recordedAt: places(song.recording_location),
     writers: (song.writer_artists ?? []).map((a) => a.name),
     producers: (song.producer_artists ?? []).map((a) => a.name),
