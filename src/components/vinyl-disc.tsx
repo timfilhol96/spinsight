@@ -116,6 +116,79 @@ function splatter(
   return out
 }
 
+/** Reference to one of the definitions in <VinylDiscDefs>. */
+const shared = (name: string) => `url(#vinyl-${name})`
+
+/**
+ * Definitions every disc uses, rendered once per page instead of once per
+ * disc: a big collection draws hundreds of discs. Kept out of `display: none`,
+ * which stops gradients rendering in some browsers.
+ */
+export function VinylDiscDefs() {
+  return (
+    <svg
+      aria-hidden
+      width="0"
+      height="0"
+      className="pointer-events-none absolute"
+    >
+      <defs>
+        <clipPath id="vinyl-disc">
+          <circle cx={C} cy={C} r={R} />
+        </clipPath>
+        <clipPath id="vinyl-label">
+          <circle cx={C} cy={C} r="33" />
+        </clipPath>
+        <radialGradient id="vinyl-inner-glow" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0.3" stopColor="#ffffff" stopOpacity="0.45" />
+          <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+        </radialGradient>
+        {/* Translucent vinyl is brighter towards the middle, where light passes through. */}
+        <radialGradient id="vinyl-see-through" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0.35" stopColor="#ffffff" stopOpacity="0.28" />
+          <stop offset="0.8" stopColor="#ffffff" stopOpacity="0.05" />
+          <stop offset="1" stopColor="#ffffff" stopOpacity="0.15" />
+        </radialGradient>
+        {/* Grooves: fine concentric rings. */}
+        <radialGradient
+          id="vinyl-grooves"
+          cx={C}
+          cy={C}
+          r={R}
+          gradientUnits="userSpaceOnUse"
+        >
+          {Array.from({ length: 34 }, (_, i) => {
+            const o = 0.34 + (i / 34) * 0.66
+            return [
+              <stop
+                key={`a${i}`}
+                offset={o}
+                stopColor="#000"
+                stopOpacity={i % 2 ? 0.1 : 0}
+              />,
+              <stop
+                key={`b${i}`}
+                offset={o + 0.008}
+                stopColor="#000"
+                stopOpacity={0}
+              />,
+            ]
+          })}
+        </radialGradient>
+        {/* Two opposing light sheens, like a lamp over the turntable. */}
+        <linearGradient id="vinyl-sheen" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0.25" stopColor="#fff" stopOpacity="0" />
+          <stop offset="0.42" stopColor="#fff" stopOpacity="0.22" />
+          <stop offset="0.5" stopColor="#fff" stopOpacity="0" />
+          <stop offset="0.75" stopColor="#fff" stopOpacity="0" />
+          <stop offset="0.85" stopColor="#fff" stopOpacity="0.12" />
+          <stop offset="0.95" stopColor="#fff" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
 type NoiseOpts = {
   type?: 'fractalNoise' | 'turbulence'
   freq: string
@@ -381,7 +454,7 @@ export function VinylDisc({
         return (
           <>
             <rect width="200" height="200" fill={c1} />
-            <circle cx={C} cy={C} r={R} fill={url('inner-glow')} />
+            <circle cx={C} cy={C} r={R} fill={shared('inner-glow')} />
           </>
         )
       case 'black':
@@ -404,13 +477,6 @@ export function VinylDisc({
         aria-label={look?.label ? `${look.label} vinyl` : 'Black vinyl'}
       >
         <defs>
-          <clipPath id={id('disc')}>
-            <circle cx={C} cy={C} r={R} />
-          </clipPath>
-          <clipPath id={id('label')}>
-            <circle cx={C} cy={C} r="33" />
-          </clipPath>
-
           {/* Only the masks this pattern needs. */}
           {pattern === 'marbled' && !photo && (
             <>
@@ -518,55 +584,9 @@ export function VinylDisc({
               <feGaussianBlur stdDeviation="0.6" />
             </filter>
           )}
-
-          <radialGradient id={id('inner-glow')} cx="0.5" cy="0.5" r="0.5">
-            <stop offset="0.3" stopColor="#ffffff" stopOpacity="0.45" />
-            <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
-          </radialGradient>
-          {/* Translucent vinyl is brighter towards the middle, where light passes through. */}
-          <radialGradient id={id('see-through')} cx="0.5" cy="0.5" r="0.5">
-            <stop offset="0.35" stopColor="#ffffff" stopOpacity="0.28" />
-            <stop offset="0.8" stopColor="#ffffff" stopOpacity="0.05" />
-            <stop offset="1" stopColor="#ffffff" stopOpacity="0.15" />
-          </radialGradient>
-          {/* Grooves: fine concentric rings. */}
-          <radialGradient
-            id={id('grooves')}
-            cx={C}
-            cy={C}
-            r={R}
-            gradientUnits="userSpaceOnUse"
-          >
-            {Array.from({ length: 34 }, (_, i) => {
-              const o = 0.34 + (i / 34) * 0.66
-              return [
-                <stop
-                  key={`a${i}`}
-                  offset={o}
-                  stopColor="#000"
-                  stopOpacity={i % 2 ? 0.1 : 0}
-                />,
-                <stop
-                  key={`b${i}`}
-                  offset={o + 0.008}
-                  stopColor="#000"
-                  stopOpacity={0}
-                />,
-              ]
-            })}
-          </radialGradient>
-          {/* Two opposing light sheens, like a lamp over the turntable. */}
-          <linearGradient id={id('sheen')} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0.25" stopColor="#fff" stopOpacity="0" />
-            <stop offset="0.42" stopColor="#fff" stopOpacity="0.22" />
-            <stop offset="0.5" stopColor="#fff" stopOpacity="0" />
-            <stop offset="0.75" stopColor="#fff" stopOpacity="0" />
-            <stop offset="0.85" stopColor="#fff" stopOpacity="0.12" />
-            <stop offset="0.95" stopColor="#fff" stopOpacity="0" />
-          </linearGradient>
         </defs>
 
-        <g clipPath={url('disc')}>
+        <g clipPath={shared('disc')}>
           {body()}
 
           {!photo &&
@@ -589,19 +609,19 @@ export function VinylDisc({
           )}
 
           {translucent && !photo && (
-            <circle cx={C} cy={C} r={R} fill={url('see-through')} />
+            <circle cx={C} cy={C} r={R} fill={shared('see-through')} />
           )}
           {/* Photos already have real grooves and light, so the overlay stays faint. */}
           <rect
             width="200"
             height="200"
-            fill={url('grooves')}
+            fill={shared('grooves')}
             opacity={photo ? 0.35 : 1}
           />
           <rect
             width="200"
             height="200"
-            fill={url('sheen')}
+            fill={shared('sheen')}
             opacity={photo ? 0.4 : 1}
           />
           <circle
@@ -637,7 +657,7 @@ export function VinylDisc({
                 y="67"
                 width="66"
                 height="66"
-                clipPath={url('label')}
+                clipPath={shared('label')}
                 preserveAspectRatio="xMidYMid slice"
               />
             )}

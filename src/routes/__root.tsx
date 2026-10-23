@@ -14,7 +14,7 @@ import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 import { MobileNav } from '#/components/mobile-nav'
 import { NowPlayingDock, NowPlayingSpacer } from '#/components/now-playing'
 import { SiteHeader } from '#/components/site-header'
-import { VinylDisc } from '#/components/vinyl-disc'
+import { VinylDisc, VinylDiscDefs } from '#/components/vinyl-disc'
 import { Button } from '#/components/ui/button'
 import { Toaster } from '#/components/ui/sonner'
 import { TooltipProvider } from '#/components/ui/tooltip'
@@ -117,6 +117,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         >
           Skip to content
         </a>
+        <VinylDiscDefs />
         <TooltipProvider>
           <SiteHeader />
           {/* Bottom padding on phones clears the tab bar (and the home indicator). */}
