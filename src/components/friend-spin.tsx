@@ -64,6 +64,7 @@ export function FriendSpinCard({
         <VinylDisc
           look={spin.look}
           labelImage={spin.thumb}
+          coverImage={spin.coverImage}
           seed={spin.releaseId}
           spinning
           className="absolute top-0 left-12 size-24"

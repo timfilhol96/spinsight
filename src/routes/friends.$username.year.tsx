@@ -102,6 +102,7 @@ function JointYearPage() {
           <VinylDisc
             look={cover?.look}
             labelImage={cover?.thumb}
+            coverImage={cover?.coverImage}
             seed={cover?.releaseId ?? year}
             className="animate-spin-slow pointer-events-none absolute -right-[22%] -bottom-[22%] w-[70%] opacity-90"
           />

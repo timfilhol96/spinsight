@@ -110,6 +110,7 @@ function WrappedPage() {
           <VinylDisc
             look={signature?.look}
             labelImage={signature?.thumb}
+            coverImage={signature?.coverImage}
             seed={signature?.releaseId ?? year}
             className="animate-spin-slow pointer-events-none absolute -right-[22%] -bottom-[22%] w-[70%] opacity-90"
           />

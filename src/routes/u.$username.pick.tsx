@@ -586,6 +586,7 @@ function Result({
           <VinylDisc
             look={r.look}
             labelImage={r.thumb}
+            coverImage={r.coverImage}
             seed={r.releaseId}
             className="animate-spin-slow"
           />

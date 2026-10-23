@@ -359,6 +359,7 @@ function FlippingDisc({
       <VinylDisc
         look={record.look}
         labelImage={record.thumb}
+        coverImage={record.coverImage}
         seed={record.releaseId}
         spinning={spinning && !flipping}
         className="w-full"

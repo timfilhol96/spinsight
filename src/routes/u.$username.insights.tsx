@@ -527,6 +527,7 @@ function InsightsPage() {
                         <VinylDisc
                           look={r.look}
                           labelImage={r.thumb}
+                          coverImage={r.coverImage}
                           seed={r.releaseId}
                           className="transition-transform duration-300 group-hover:scale-110 group-hover:rotate-45"
                         />

@@ -42,6 +42,7 @@ export function RecordCard({
         <VinylDisc
           look={record.look}
           labelImage={record.thumb}
+          coverImage={record.coverImage}
           seed={record.releaseId}
           className="absolute inset-[4%] transition-transform duration-500 ease-out group-hover:translate-x-[22%] group-focus-visible:translate-x-[22%] group-hover:rotate-45"
         />

@@ -108,6 +108,7 @@ function Dock({ playing }: { playing: NowPlaying }) {
         <VinylDisc
           look={playing.look}
           labelImage={playing.thumb}
+          coverImage={playing.coverImage}
           seed={playing.releaseId}
           spinning
           className="size-full"
@@ -135,6 +136,7 @@ function Dock({ playing }: { playing: NowPlaying }) {
           <VinylDisc
             look={playing.look}
             labelImage={playing.thumb}
+            coverImage={playing.coverImage}
             seed={playing.releaseId}
             spinning
             className="absolute top-0 left-7 size-16"

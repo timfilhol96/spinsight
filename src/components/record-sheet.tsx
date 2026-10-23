@@ -66,6 +66,7 @@ function RecordDetail({ record }: { record: CollectionRecord }) {
           <VinylDisc
             look={record.look}
             labelImage={record.thumb}
+            coverImage={record.coverImage}
             seed={record.releaseId}
             // Pulled roughly halfway out of the sleeve.
             className="-ml-[26%] w-[58%] shrink-0 animate-spin-slow"

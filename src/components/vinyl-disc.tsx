@@ -5,8 +5,10 @@ import type { VinylLook } from '#/lib/vinyl-color'
 
 type Props = {
   look: VinylLook | null | undefined
-  /** Cover art, used for the centre label (and the whole disc for picture discs). */
+  /** Cover art for the centre label: a thumbnail is plenty at that size. */
   labelImage?: string | null
+  /** Full-size cover art, so a picture disc stays sharp across the whole disc. */
+  coverImage?: string | null
   /** Stable seed so random details (splatter, marble veins) don't move between renders. */
   seed?: number
   spinning?: boolean
@@ -133,6 +135,7 @@ type NoiseOpts = {
 export function VinylDisc({
   look,
   labelImage,
+  coverImage,
   seed = 1,
   spinning,
   className,
@@ -243,10 +246,11 @@ export function VinylDisc({
       )
     }
     switch (pattern) {
-      case 'picture':
-        return labelImage ? (
+      case 'picture': {
+        const art = coverImage ?? labelImage
+        return art ? (
           <image
-            href={labelImage}
+            href={art}
             width="200"
             height="200"
             preserveAspectRatio="xMidYMid slice"
@@ -254,6 +258,7 @@ export function VinylDisc({
         ) : (
           <rect width="200" height="200" fill={BLACK} />
         )
+      }
       case 'split':
         // A/B halves meet in a straight line through the centre.
         return (

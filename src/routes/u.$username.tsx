@@ -121,6 +121,7 @@ function ProfileLayout() {
                 <VinylDisc
                   look={profile.nowPlaying.look}
                   labelImage={profile.nowPlaying.thumb}
+                  coverImage={profile.nowPlaying.coverImage}
                   seed={profile.nowPlaying.releaseId}
                   spinning
                   className="size-4"
