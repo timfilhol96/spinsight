@@ -50,11 +50,16 @@ async function lookupUser(): Promise<UserRow | null> {
   const session = await appSession()
   const userId = session.data.userId
   if (!userId) return null
-  const { data } = await db()
+  const { data, error } = await db()
     .from('users')
     .select('*')
     .eq('id', userId)
     .maybeSingle()
+  // Not "signed out": that would hide the owner's private collection from them.
+  if (error) {
+    console.error('[session] user lookup failed', error)
+    throw new Error(error.message)
+  }
   return (data as UserRow | null) ?? null
 }
 

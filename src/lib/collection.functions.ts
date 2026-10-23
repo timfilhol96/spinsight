@@ -88,7 +88,7 @@ export const getProfile = createServerFn({ method: 'GET' })
 
     // Each step waits only on what it needs: the database can be a long round
     // trip away, so queries that don't depend on each other go out together.
-    const [viewer, { data: owner }] = await Promise.all([
+    const [viewer, { data: owner, error: ownerError }] = await Promise.all([
       currentUser(),
       timed('owner', async () =>
         supabase
@@ -101,6 +101,12 @@ export const getProfile = createServerFn({ method: 'GET' })
           .maybeSingle(),
       ),
     ])
+    // A failed lookup must not read as "no such collection": null would replace
+    // a good cached profile on a background refetch, while an error keeps it.
+    if (ownerError) {
+      console.error('[profile] owner lookup failed', ownerError)
+      throw new Error(ownerError.message)
+    }
     if (!owner) return null
     const isOwner = viewer?.id === owner.id
     if (!owner.is_public && !isOwner) return null
