@@ -81,28 +81,55 @@ export const getProfile = createServerFn({ method: 'GET' })
     }
     const { db } = await import('#/lib/supabase.server')
     const { currentUser } = await import('#/lib/session.server')
+    const { timed } = await import('#/lib/timing.server')
+    const { usdRates } = await import('#/lib/rates.server')
+    const { nowPlayingFor } = await import('#/lib/plays.server')
     const supabase = db()
-    const viewer = await currentUser()
 
-    const { data: owner } = await supabase
-      .from('users')
-      // '*' rather than a column list so share_listening (migration 006) is
-      // optional. Tokens stay on the server: only the fields below are returned.
-      .select('*')
-      // Case-insensitive exact match; escape LIKE wildcards (usernames can contain "_").
-      .ilike('discogs_username', data.username.replace(/[\\%_]/g, '\\$&'))
-      .maybeSingle()
+    // Each step waits only on what it needs: the database can be a long round
+    // trip away, so queries that don't depend on each other go out together.
+    const [viewer, { data: owner }] = await Promise.all([
+      currentUser(),
+      timed('owner', async () =>
+        supabase
+          .from('users')
+          // '*' rather than a column list so share_listening (migration 006) is
+          // optional. Tokens stay on the server: only the fields below are returned.
+          .select('*')
+          // Case-insensitive exact match; escape LIKE wildcards (usernames can contain "_").
+          .ilike('discogs_username', data.username.replace(/[\\%_]/g, '\\$&'))
+          .maybeSingle(),
+      ),
+    ])
     if (!owner) return null
     const isOwner = viewer?.id === owner.id
     if (!owner.is_public && !isOwner) return null
 
-    const { data: items, error } = await supabase
-      .from('collection_items')
-      .select(
-        'instance_id, date_added, rating, cover_url, cover_thumb, disc_photo, disc_colors, release:releases!inner(*)',
-      )
-      .eq('user_id', owner.id)
-      .order('date_added', { ascending: false })
+    const [{ data: items, error }, { data: playRows }, rates, nowPlaying] =
+      await Promise.all([
+        timed('items', async () =>
+          supabase
+            .from('collection_items')
+            .select(
+              'instance_id, date_added, rating, cover_url, cover_thumb, disc_photo, disc_colors, release:releases!inner(*)',
+            )
+            .eq('user_id', owner.id)
+            .order('date_added', { ascending: false }),
+        ),
+        timed('plays', async () =>
+          supabase
+            .from('plays')
+            .select('id, release_id, played_at, source')
+            .eq('user_id', owner.id)
+            .order('played_at', { ascending: false })
+            .limit(2000),
+        ),
+        timed('rates', usdRates),
+        // Listening can be kept private while the collection is public.
+        isOwner || owner.share_listening !== false
+          ? timed('now-playing', () => nowPlayingFor(owner.id))
+          : null,
+      ])
     if (error) throw new Error(error.message)
 
     const artistIds = new Set<number>()
@@ -112,20 +139,16 @@ export const getProfile = createServerFn({ method: 'GET' })
     }
     const genresByArtist = new Map<number, string[]>()
     if (artistIds.size) {
-      const { data: artists } = await supabase
-        .from('artists')
-        .select('discogs_id, spotify_genres')
-        .in('discogs_id', [...artistIds])
+      const { data: artists } = await timed('artists', async () =>
+        supabase
+          .from('artists')
+          .select('discogs_id, spotify_genres')
+          .in('discogs_id', [...artistIds]),
+      )
       for (const a of artists ?? [])
         genresByArtist.set(Number(a.discogs_id), a.spotify_genres ?? [])
     }
 
-    const { data: playRows } = await supabase
-      .from('plays')
-      .select('id, release_id, played_at, source')
-      .eq('user_id', owner.id)
-      .order('played_at', { ascending: false })
-      .limit(2000)
     // Only plays of records still in the collection count. Plays of a pressing
     // that was swapped out on Discogs stay in the table (they come back if the
     // pressing does) but are left out of every stat.
@@ -218,7 +241,6 @@ export const getProfile = createServerFn({ method: 'GET' })
       }
     })
 
-    const { usdRates } = await import('#/lib/rates.server')
     const value = owner.collection_value as Record<
       'minimum' | 'median' | 'maximum',
       string
@@ -240,12 +262,8 @@ export const getProfile = createServerFn({ method: 'GET' })
             }
           : null,
       currency: viewer?.preferred_currency ?? owner.preferred_currency ?? null,
-      rates: await usdRates(),
-      // Listening can be kept private while the collection is public.
-      nowPlaying:
-        isOwner || owner.share_listening !== false
-          ? await (await import('#/lib/plays.server')).nowPlayingFor(owner.id)
-          : null,
+      rates,
+      nowPlaying,
       plays,
       records,
     }

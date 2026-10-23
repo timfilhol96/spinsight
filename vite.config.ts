@@ -15,6 +15,9 @@ const config = defineConfig({
       // Written into Vercel's Build Output config. vercel.json's `crons` isn't
       // read for prebuilt output, so the daily sync is declared here.
       vercel: {
+        // Next to the Supabase project (ap-southeast-2): a page load makes
+        // several database round trips, each one crossing the Pacific otherwise.
+        functions: { regions: ['syd1'] },
         config: {
           version: 3,
           crons: [{ path: '/api/cron/sync', schedule: '0 5 * * *' }],

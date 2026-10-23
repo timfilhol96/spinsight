@@ -1,6 +1,7 @@
-import { useSession } from '@tanstack/react-start/server'
+import { getRequest, useSession } from '@tanstack/react-start/server'
 import { env } from '#/lib/env.server'
 import { db } from '#/lib/supabase.server'
+import { timed } from '#/lib/timing.server'
 import type { UserRow } from '#/lib/supabase.server'
 
 type SessionData = {
@@ -27,7 +28,25 @@ export function appSession() {
   })
 }
 
-export async function currentUser(): Promise<UserRow | null> {
+// One lookup per request: a server-rendered page calls getViewer and then
+// getProfile in the same request, and both want the signed-in user.
+const usersByRequest = new WeakMap<Request, Promise<UserRow | null>>()
+
+export function currentUser(): Promise<UserRow | null> {
+  let req: Request | null = null
+  try {
+    req = getRequest()
+  } catch {
+    // Outside a request: no memo, just look it up.
+  }
+  const cached = req && usersByRequest.get(req)
+  if (cached) return cached
+  const lookup = timed('viewer', lookupUser)
+  if (req) usersByRequest.set(req, lookup)
+  return lookup
+}
+
+async function lookupUser(): Promise<UserRow | null> {
   const session = await appSession()
   const userId = session.data.userId
   if (!userId) return null
