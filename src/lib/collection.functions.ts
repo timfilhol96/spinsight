@@ -7,6 +7,7 @@ import type {
   CollectionRecord,
   CoverOption,
   Profile,
+  Track,
   Viewer,
 } from '#/lib/records'
 import { parseVinylLook, withDiscPhoto } from '#/lib/vinyl-color'
@@ -62,7 +63,7 @@ type ReleaseRow = {
   community_rating: number | null
   lowest_price: number | null
   num_for_sale: number | null
-  tracklist: CollectionRecord['tracklist']
+  tracklist: Track[] | null
   duration_sec: number | null
   duration_source: 'discogs' | 'spotify' | 'itunes' | null
   enriched_at: string | null
@@ -196,7 +197,8 @@ export const getProfile = createServerFn({ method: 'GET' })
         originalYear: r.original_year ?? r.year,
         genres: r.genres ?? [],
         styles: r.styles ?? [],
-        labels: r.labels ?? [],
+        // Discogs label objects carry ids and URLs the page doesn't use.
+        labels: (r.labels ?? []).map((l) => ({ name: l.name, catno: l.catno })),
         formatNames: [...new Set(formats.map((f) => f.name))],
         formatDescriptions: [
           ...new Set(formats.flatMap((f) => f.descriptions ?? [])),
@@ -232,7 +234,6 @@ export const getProfile = createServerFn({ method: 'GET' })
               }
             : null,
         numForSale: r.num_for_sale,
-        tracklist: r.tracklist,
         durationSec: r.duration_sec,
         durationSource: r.duration_source ?? null,
         enriched: !!r.enriched_at,
@@ -523,6 +524,27 @@ export const setCover = createServerFn({ method: 'POST' })
       .eq('instance_id', data.instanceId)
     if (error) throw new Error(error.message)
     return { ok: true }
+  })
+
+// ---------- tracklist ----------
+
+/**
+ * A record's tracklist, fetched when it's opened rather than with the whole
+ * collection. Public Discogs data about a release, like the rest of `releases`.
+ */
+export const getTracklist = createServerFn({ method: 'GET' })
+  .validator((d: { releaseId: number }) =>
+    z.object({ releaseId: z.number().int().positive() }).parse(d),
+  )
+  .handler(async ({ data }): Promise<Track[]> => {
+    const { db } = await import('#/lib/supabase.server')
+    const { data: row, error } = await db()
+      .from('releases')
+      .select('tracklist')
+      .eq('id', data.releaseId)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    return (row?.tracklist as Track[] | null) ?? []
   })
 
 // ---------- now playing ----------

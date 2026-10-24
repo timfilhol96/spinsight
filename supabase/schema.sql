@@ -157,6 +157,14 @@ create table if not exists public.record_facts_cache (
   fetched_at timestamptz not null default now()
 );
 
+-- A record's finished liner notes for the listening room, shared by every
+-- user. Shown for 30 days, refreshed in the background once a day old.
+create table if not exists public.liner_notes_cache (
+  release_id bigint primary key,   -- Discogs release
+  notes jsonb not null,
+  fetched_at timestamptz not null default now()
+);
+
 create table if not exists public.sync_runs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users (id) on delete cascade,
@@ -181,3 +189,4 @@ alter table public.follows enable row level security;
 alter table public.play_reactions enable row level security;
 alter table public.want_items enable row level security;
 alter table public.record_facts_cache enable row level security;
+alter table public.liner_notes_cache enable row level security;

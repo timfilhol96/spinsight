@@ -27,6 +27,7 @@ import type {
   TrackFacts,
   WikiPage,
 } from '#/lib/liner-notes'
+import { tracklistQuery } from '#/lib/queries'
 import { formatDuration } from '#/lib/records'
 import type { CollectionRecord, Play } from '#/lib/records'
 import { shelfFacts } from '#/lib/shelf-facts'
@@ -80,19 +81,30 @@ export function ListeningRoom({
   onPlayNext,
 }: Props) {
   useRecordTheme(record.look, THEME_PRIORITY.focus, record.coverImage)
-  const notes = useQuery({
+  const cached = useQuery({
     queryKey: ['liner-notes', record.releaseId],
     queryFn: () => getLinerNotes({ data: { releaseId: record.releaseId } }),
     staleTime: Infinity,
     retry: 1,
   })
+  // An old cached copy shows straight away; a fresh one replaces it when ready.
+  const fresh = useQuery({
+    queryKey: ['liner-notes', record.releaseId, 'fresh'],
+    queryFn: () =>
+      getLinerNotes({ data: { releaseId: record.releaseId, refresh: true } }),
+    enabled: !!cached.data?.stale,
+    staleTime: Infinity,
+    retry: false,
+  })
+  const notes = fresh.data ? fresh : cached
+  const tracklist = useQuery(tracklistQuery(record.releaseId))
   const { sides, timing, guessed } = useMemo(
     () =>
-      buildSides(record.tracklist ?? [], {
+      buildSides(tracklist.data ?? [], {
         totalSec: record.durationSec,
         streaming: notes.data?.streaming,
       }),
-    [record.tracklist, record.durationSec, notes.data?.streaming],
+    [tracklist.data, record.durationSec, notes.data?.streaming],
   )
   const follower = useFollower(sides, startedAt, now)
   const shelf = useMemo(
@@ -217,7 +229,7 @@ export function ListeningRoom({
                 .join(' · ')}
             </p>
           </div>
-          <NowCard follower={follower} />
+          <NowCard follower={follower} loading={tracklist.isPending} />
           <TrackList
             follower={follower}
             timing={timing}
@@ -405,8 +417,15 @@ function Platter({
   )
 }
 
-function NowCard({ follower }: { follower: Follower }) {
+function NowCard({
+  follower,
+  loading,
+}: {
+  follower: Follower
+  loading: boolean
+}) {
   const p = follower.position
+  if (!p && loading) return <Skeleton className="h-24 w-full rounded-xl" />
   if (!p)
     return (
       <p className="rounded-xl border bg-card/70 p-4 text-sm text-muted-foreground">

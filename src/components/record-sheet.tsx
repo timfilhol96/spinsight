@@ -1,5 +1,7 @@
+import { useQuery } from '@tanstack/react-query'
 import { ExternalLink, Heart, Tag, Users } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
+import { Skeleton } from '#/components/ui/skeleton'
 import { Separator } from '#/components/ui/separator'
 import {
   Sheet,
@@ -17,6 +19,7 @@ import {
   PlayButton,
   playSummary,
 } from '#/components/play-button'
+import { tracklistQuery } from '#/lib/queries'
 import { useMoney, useProfile } from '#/lib/use-profile'
 import { formatDuration } from '#/lib/records'
 import type { CollectionRecord } from '#/lib/records'
@@ -51,6 +54,9 @@ function RecordDetail({ record }: { record: CollectionRecord }) {
       ? (record.communityWant / record.communityHave).toFixed(2)
       : null
   const duration = formatDuration(record.durationSec)
+  const { data: tracklist, isPending: tracklistPending } = useQuery(
+    tracklistQuery(record.releaseId),
+  )
 
   return (
     <>
@@ -230,11 +236,20 @@ function RecordDetail({ record }: { record: CollectionRecord }) {
           </div>
         )}
 
-        {record.tracklist && record.tracklist.length > 0 && (
+        {tracklistPending && (
+          <div className="space-y-2">
+            <p className="kicker">Tracklist</p>
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-5/6" />
+            <Skeleton className="h-4 w-4/6" />
+          </div>
+        )}
+
+        {tracklist && tracklist.length > 0 && (
           <div>
             <p className="kicker mb-2">Tracklist</p>
             <ol className="space-y-1 text-sm">
-              {record.tracklist.map((t, i) => (
+              {tracklist.map((t, i) => (
                 <li key={`${t.position}-${i}`} className="flex gap-3">
                   <span className="w-7 shrink-0 font-mono text-xs leading-5 text-muted-foreground">
                     {t.position}
@@ -254,10 +269,10 @@ function RecordDetail({ record }: { record: CollectionRecord }) {
                 </li>
               ))}
             </ol>
-            {record.tracklist.some((t) => t.source) && (
+            {tracklist.some((t) => t.source) && (
               <p className="mt-2 text-[11px] text-muted-foreground">
                 * Discogs has no time for these tracks; their length is from{' '}
-                {record.tracklist.find((t) => t.source)?.source === 'itunes'
+                {tracklist.find((t) => t.source)?.source === 'itunes'
                   ? 'Apple Music'
                   : 'Spotify'}
                 .

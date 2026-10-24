@@ -2,6 +2,7 @@ import { queryOptions } from '@tanstack/react-query'
 import {
   getNowPlaying,
   getProfile,
+  getTracklist,
   getViewer,
 } from '#/lib/collection.functions'
 import { getFriendsActivity, getWantlist } from '#/lib/friends.functions'
@@ -17,6 +18,14 @@ export const profileQuery = (username: string) =>
     queryKey: ['profile', username.toLowerCase()],
     queryFn: () => getProfile({ data: { username } }),
     staleTime: 60_000,
+  })
+
+/** A record's tracklist, loaded when it's opened (not part of the profile). */
+export const tracklistQuery = (releaseId: number) =>
+  queryOptions({
+    queryKey: ['tracklist', releaseId],
+    queryFn: () => getTracklist({ data: { releaseId } }),
+    staleTime: 10 * 60_000,
   })
 
 /** The signed-in user's current spin. Polled so it ends on its own. */

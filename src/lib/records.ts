@@ -54,6 +54,19 @@ export type Viewer = {
   preferredCurrency: string | null
 }
 
+export type Track = {
+  position: string
+  title: string
+  /** "4:15". Filled from streaming when Discogs has none (see `source`). */
+  duration: string
+  /** Set when `duration` came from streaming rather than Discogs. */
+  source?: 'spotify' | 'itunes'
+}
+
+/**
+ * One record in a collection. The tracklist isn't included: it's most of the
+ * weight and only needed once a record is opened (see `tracklistQuery`).
+ */
 export type CollectionRecord = {
   instanceId: number
   releaseId: number
@@ -86,14 +99,6 @@ export type CollectionRecord = {
   /** Lowest current Discogs listing. */
   lowestPrice: Money | null
   numForSale: number | null
-  tracklist: Array<{
-    position: string
-    title: string
-    /** "4:15". Filled from streaming when Discogs has none (see `source`). */
-    duration: string
-    /** Set when `duration` came from streaming rather than Discogs. */
-    source?: 'spotify' | 'itunes'
-  }> | null
   durationSec: number | null
   /** 'discogs' (tracklist) or the streaming service the runtime came from. */
   durationSource: 'discogs' | 'spotify' | 'itunes' | null

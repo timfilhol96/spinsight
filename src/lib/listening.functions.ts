@@ -4,11 +4,16 @@ import type { LinerNotes, TrackFacts } from '#/lib/liner-notes'
 
 // Listening room. Read-only: it looks things up on Discogs, Wikipedia,
 // Genius, Last.fm, setlist.fm and Spotify and never writes to the database
-// (beyond the shared cache of public facts about a record).
+// (beyond the shared caches of public facts and liner notes about a record).
 
 export const getLinerNotes = createServerFn({ method: 'GET' })
-  .validator((d: { releaseId: number }) =>
-    z.object({ releaseId: z.number().int().positive() }).parse(d),
+  .validator((d: { releaseId: number; refresh?: boolean }) =>
+    z
+      .object({
+        releaseId: z.number().int().positive(),
+        refresh: z.boolean().optional(),
+      })
+      .parse(d),
   )
   .handler(async ({ data }): Promise<LinerNotes> => {
     const { requireUser } = await import('#/lib/session.server')
@@ -21,10 +26,11 @@ export const getLinerNotes = createServerFn({ method: 'GET' })
       .eq('user_id', user.id)
       .eq('release_id', data.releaseId)
     if (!count) throw new Error('That record is not in your collection.')
-    return linerNotesFor(data.releaseId, {
-      token: user.oauth_token,
-      secret: user.oauth_token_secret,
-    })
+    return linerNotesFor(
+      data.releaseId,
+      { token: user.oauth_token, secret: user.oauth_token_secret },
+      { refresh: data.refresh },
+    )
   })
 
 /**

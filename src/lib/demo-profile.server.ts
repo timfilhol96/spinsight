@@ -74,7 +74,6 @@ export function demoProfile(): Profile {
       communityRating: 4 + ((i * 3) % 10) / 10,
       lowestPrice: { amount: 22 + ((i * 7) % 30), currency: 'USD' },
       numForSale: 10 + ((i * 13) % 120),
-      tracklist: null,
       durationSec: a.durationSec,
       durationSource: 'itunes',
       enriched: true,

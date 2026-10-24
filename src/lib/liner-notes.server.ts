@@ -18,6 +18,7 @@ import {
   praiseFrom,
 } from '#/lib/praise.server'
 import { recordFactsFor } from '#/lib/record-facts.server'
+import { db } from '#/lib/supabase.server'
 import type { RecordFacts } from '#/lib/record-facts.server'
 import { liveHistory, liveTrack } from '#/lib/setlistfm.server'
 import { trackSeconds } from '#/lib/track-follower'
@@ -223,16 +224,71 @@ function mentionsOf(song: string, page: WikiPage | null): string[] {
 
 // ---------- assembly ----------
 
-const cache = new Map<number, { at: number; notes: LinerNotes }>()
-const CACHE_MS = 60 * 60_000
+// Built notes are kept in the database for every server instance to share:
+// a dozen lookups (Discogs pausing near its rate limit, MusicBrainz at one a
+// second) become one read. Last.fm counts and the latest show drift, so a
+// copy over a day old is still shown at once but marked stale, and the room
+// asks for a fresh one behind it.
+const FRESH_MS = 24 * 60 * 60_000
+const KEEP_MS = 30 * 24 * 60 * 60_000
 
+async function readCache(
+  releaseId: number,
+): Promise<{ notes: LinerNotes; at: number } | null> {
+  try {
+    const { data } = await db()
+      .from('liner_notes_cache')
+      .select('notes, fetched_at')
+      .eq('release_id', releaseId)
+      .maybeSingle()
+    if (!data) return null
+    const at = Date.parse(data.fetched_at as string)
+    return Date.now() - at > KEEP_MS
+      ? null
+      : { notes: data.notes as LinerNotes, at }
+  } catch {
+    // Before migration 009, or the database can't be reached: build them.
+    return null
+  }
+}
+
+async function writeCache(notes: LinerNotes): Promise<void> {
+  try {
+    await db().from('liner_notes_cache').upsert({
+      release_id: notes.releaseId,
+      notes,
+      fetched_at: new Date().toISOString(),
+    })
+  } catch {
+    // A missed write only costs a slower room next time.
+  }
+}
+
+/**
+ * The record's liner notes: from the database when built in the last month
+ * (`stale` once a day old), otherwise built now. `refresh` always rebuilds.
+ */
 export async function linerNotesFor(
   releaseId: number,
   auth: OAuthToken,
+  opts: { refresh?: boolean } = {},
 ): Promise<LinerNotes> {
-  const hit = cache.get(releaseId)
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.notes
+  if (!opts.refresh) {
+    const hit = await readCache(releaseId)
+    if (hit)
+      return Date.now() - hit.at > FRESH_MS
+        ? { ...hit.notes, stale: true }
+        : hit.notes
+  }
+  const notes = await buildLinerNotes(releaseId, auth)
+  await writeCache(notes)
+  return notes
+}
 
+async function buildLinerNotes(
+  releaseId: number,
+  auth: OAuthToken,
+): Promise<LinerNotes> {
   const release = await discogsGet<FullRelease>(`/releases/${releaseId}`, auth)
   // Started early: it's the slowest source (MusicBrainz allows one request a
   // second) and runs alongside the Discogs lookups below.
@@ -390,7 +446,6 @@ export async function linerNotesFor(
     }),
     streaming,
   }
-  cache.set(releaseId, { at: Date.now(), notes })
   return notes
 }
 

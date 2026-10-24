@@ -154,4 +154,6 @@ export type LinerNotes = {
     /** The streaming album they came from; null when found song by song. */
     album: string | null
   } | null
+  /** From the cache and over a day old: shown as is while a fresh copy loads. */
+  stale?: boolean
 }
