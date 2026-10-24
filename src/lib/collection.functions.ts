@@ -547,6 +547,38 @@ export const getTracklist = createServerFn({ method: 'GET' })
     return (row?.tracklist as Track[] | null) ?? []
   })
 
+/**
+ * Tracklists for a whole collection in one go, keyed by release id. Loaded
+ * behind the collection so opening a record doesn't wait on its own request.
+ */
+export const getTracklists = createServerFn({ method: 'POST' })
+  .validator((d: { releaseIds: number[] }) =>
+    z
+      .object({
+        releaseIds: z.array(z.number().int().positive()).max(5000),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }): Promise<Record<number, Track[]>> => {
+    const { db } = await import('#/lib/supabase.server')
+    // Batches keep each request's id list well inside URL length limits.
+    const batches: number[][] = []
+    for (let i = 0; i < data.releaseIds.length; i += 300)
+      batches.push(data.releaseIds.slice(i, i + 300))
+    const results = await Promise.all(
+      batches.map((ids) =>
+        db().from('releases').select('id, tracklist').in('id', ids),
+      ),
+    )
+    const out: Record<number, Track[]> = {}
+    for (const { data: rows, error } of results) {
+      if (error) throw new Error(error.message)
+      for (const r of rows)
+        out[Number(r.id)] = (r.tracklist as Track[] | null) ?? []
+    }
+    return out
+  })
+
 // ---------- now playing ----------
 
 export const getNowPlaying = createServerFn({ method: 'GET' }).handler(

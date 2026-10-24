@@ -1,8 +1,9 @@
-import { queryOptions } from '@tanstack/react-query'
+import { queryOptions, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getNowPlaying,
   getProfile,
   getTracklist,
+  getTracklists,
   getViewer,
 } from '#/lib/collection.functions'
 import { getFriendsActivity, getWantlist } from '#/lib/friends.functions'
@@ -27,6 +28,25 @@ export const tracklistQuery = (releaseId: number) =>
     queryFn: () => getTracklist({ data: { releaseId } }),
     staleTime: 10 * 60_000,
   })
+
+/**
+ * Every tracklist in a collection, fetched once the collection has loaded and
+ * copied into each record's `tracklistQuery`, so records open instantly.
+ */
+export function usePrefetchTracklists(username: string, releaseIds: number[]) {
+  const qc = useQueryClient()
+  useQuery({
+    queryKey: ['tracklists', username.toLowerCase()],
+    queryFn: async () => {
+      const lists = await getTracklists({ data: { releaseIds } })
+      for (const [id, tracks] of Object.entries(lists))
+        qc.setQueryData(tracklistQuery(Number(id)).queryKey, tracks)
+      return true
+    },
+    enabled: releaseIds.length > 0,
+    staleTime: 10 * 60_000,
+  })
+}
 
 /** The signed-in user's current spin. Polled so it ends on its own. */
 export const nowPlayingQuery = queryOptions({

@@ -15,7 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '#/components/ui/avatar'
 import { Button } from '#/components/ui/button'
 import { Progress } from '#/components/ui/progress'
 import { setProfileVisibility } from '#/lib/collection.functions'
-import { profileQuery, viewerQuery } from '#/lib/queries'
+import { profileQuery, usePrefetchTracklists, viewerQuery } from '#/lib/queries'
 import type { Profile } from '#/lib/records'
 import { useCollectionSync } from '#/lib/use-collection-sync'
 import { useProfile } from '#/lib/use-profile'
@@ -72,6 +72,10 @@ function ProfileLayout() {
   const profile = useProfile()
   const sync = useCollectionSync(username)
   const { data: viewer } = useQuery(viewerQuery)
+  usePrefetchTracklists(
+    username,
+    profile.records.map((r) => r.releaseId),
+  )
 
   // First visit after signing up: pull the collection straight away.
   const welcomed = useRef(false)
