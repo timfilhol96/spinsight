@@ -12,7 +12,11 @@ import { VinylSwatch } from '#/components/record-card'
 import { VinylDisc } from '#/components/vinyl-disc'
 import { CoverPicker } from '#/components/cover-picker'
 import { DiscPhotoEditor } from '#/components/disc-photo-editor'
-import { PlayButton, playSummary } from '#/components/play-button'
+import {
+  PastPlayButton,
+  PlayButton,
+  playSummary,
+} from '#/components/play-button'
 import { useMoney, useProfile } from '#/lib/use-profile'
 import { formatDuration } from '#/lib/records'
 import type { CollectionRecord } from '#/lib/records'
@@ -108,6 +112,7 @@ function RecordDetail({ record }: { record: CollectionRecord }) {
       {isOwner && (
         <div className="flex flex-wrap items-center gap-3">
           <PlayButton record={record} />
+          <PastPlayButton record={record} />
           <span className="text-xs text-muted-foreground">
             {playSummary(record)}
           </span>

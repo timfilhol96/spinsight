@@ -2,7 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { CURRENCIES, parseMoney } from '#/lib/currency'
 import type { DiscogsRelease } from '#/lib/discogs.server'
-import { detailsOutdated } from '#/lib/records'
+import { DEFAULT_RUNTIME_SEC, detailsOutdated } from '#/lib/records'
 import type {
   CollectionRecord,
   CoverOption,
@@ -340,18 +340,32 @@ const PlayContext = z
   })
   .strict()
 
+/**
+ * Logs a spin. With `playedAt`, it's a listen logged after the fact: saved
+ * already finished, so it never reaches the now-playing dock and leaves
+ * whatever is spinning alone.
+ */
 export const logPlay = createServerFn({ method: 'POST' })
   .validator(
     (d: {
       releaseId: number
       source: 'manual' | 'picker'
       context?: unknown
+      playedAt?: string
     }) =>
       z
         .object({
           releaseId: z.number().int().positive(),
           source: z.enum(['manual', 'picker']),
           context: PlayContext.optional(),
+          playedAt: z
+            .string()
+            .datetime({ offset: true })
+            // A minute of leeway for clock drift.
+            .refine((t) => Date.parse(t) <= Date.now() + 60_000, {
+              message: "A past listen can't be in the future.",
+            })
+            .optional(),
         })
         .parse(d),
   )
@@ -367,6 +381,31 @@ export const logPlay = createServerFn({ method: 'POST' })
       .eq('user_id', user.id)
       .eq('release_id', data.releaseId)
     if (!count) throw new Error('That record is not in your collection.')
+    if (data.playedAt) {
+      const { data: rel } = await supabase
+        .from('releases')
+        .select('duration_sec')
+        .eq('id', data.releaseId)
+        .maybeSingle()
+      const start = Date.parse(data.playedAt)
+      const runtime = (rel?.duration_sec ?? DEFAULT_RUNTIME_SEC) * 1000
+      const { data: row, error } = await supabase
+        .from('plays')
+        .insert({
+          user_id: user.id,
+          release_id: data.releaseId,
+          source: data.source,
+          played_at: new Date(start).toISOString(),
+          ended_at: new Date(
+            Math.min(start + runtime, Date.now()),
+          ).toISOString(),
+          context: { ...data.context, backfilled: true },
+        })
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+      return { id: row.id as string }
+    }
     const { endOpenPlays } = await import('#/lib/plays.server')
     await endOpenPlays(user.id)
     const { data: row, error } = await supabase

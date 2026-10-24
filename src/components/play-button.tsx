@@ -1,11 +1,19 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Disc3, Square } from 'lucide-react'
+import { Disc3, History, Square } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '#/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '#/components/ui/dropdown-menu'
+import { Input } from '#/components/ui/input'
 import { deletePlay, logPlay, stopPlay } from '#/lib/collection.functions'
 import type { PickAnswers } from '#/lib/moods'
 import { nowPlayingQuery } from '#/lib/queries'
+import { DEFAULT_RUNTIME_SEC } from '#/lib/records'
 import type { CollectionRecord } from '#/lib/records'
 import { cn } from '#/lib/utils'
 
@@ -105,6 +113,121 @@ export function PlayButton({
       <Disc3 className={pending ? 'animate-spin' : ''} />
       I'm playing this
     </Button>
+  )
+}
+
+/** A `datetime-local` value (local time, to the minute). */
+function localInputValue(ms: number) {
+  const d = new Date(ms - new Date(ms).getTimezoneOffset() * 60_000)
+  return d.toISOString().slice(0, 16)
+}
+
+/**
+ * Logs a listen after the fact, for when the record wasn't logged while it
+ * played. It's saved already finished, so it skips the now-playing dock.
+ */
+export function PastPlayButton({
+  record,
+  className,
+}: {
+  record: CollectionRecord
+  className?: string
+}) {
+  const qc = useQueryClient()
+  const [pending, setPending] = useState(false)
+  const [picking, setPicking] = useState(false)
+  const runtimeMs = (record.durationSec ?? DEFAULT_RUNTIME_SEC) * 1000
+  const [when, setWhen] = useState('')
+
+  async function log(playedAt: number) {
+    setPending(true)
+    try {
+      const { id } = await logPlay({
+        data: {
+          releaseId: record.releaseId,
+          source: 'manual',
+          playedAt: new Date(playedAt).toISOString(),
+        },
+      })
+      await qc.invalidateQueries({ queryKey: ['profile'] })
+      setPicking(false)
+      toast.success(`Logged a listen of ${record.title}.`, {
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            await deletePlay({ data: { id } })
+            await qc.invalidateQueries({ queryKey: ['profile'] })
+          },
+        },
+      })
+    } catch (e) {
+      toast.error(`Couldn't log the listen: ${(e as Error).message}`)
+    } finally {
+      setPending(false)
+    }
+  }
+
+  if (picking) {
+    const now = Date.now()
+    return (
+      <form
+        className={cn('flex w-full flex-wrap items-center gap-2', className)}
+        onSubmit={(e) => {
+          e.preventDefault()
+          const t = new Date(when).getTime()
+          if (!Number.isNaN(t)) void log(Math.min(t, Date.now()))
+        }}
+      >
+        <label className="sr-only" htmlFor="past-play-when">
+          When you started listening
+        </label>
+        <Input
+          id="past-play-when"
+          type="datetime-local"
+          value={when}
+          max={localInputValue(now)}
+          onChange={(e) => setWhen(e.target.value)}
+          required
+          className="w-auto"
+        />
+        <Button type="submit" disabled={pending || !when}>
+          <History className={pending ? 'animate-spin' : ''} />
+          Log it
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => setPicking(false)}
+          disabled={pending}
+        >
+          Cancel
+        </Button>
+      </form>
+    )
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" disabled={pending} className={className}>
+          <History className={pending ? 'animate-spin' : ''} />
+          Already played it
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuItem onSelect={() => void log(Date.now() - runtimeMs)}>
+          Just finished it
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => {
+            setWhen(localInputValue(Date.now() - runtimeMs))
+            setPicking(true)
+          }}
+        >
+          Earlier…
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
