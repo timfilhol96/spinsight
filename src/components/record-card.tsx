@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from 'react'
+import type { RefObject } from 'react'
 import { VinylDisc } from '#/components/vinyl-disc'
 import type { CollectionRecord } from '#/lib/records'
 import { isColoredVinyl } from '#/lib/vinyl-color'
@@ -22,6 +24,29 @@ export function VinylSwatch({
   )
 }
 
+/**
+ * Whether the card's disc should be drawn. It hides behind the sleeve until
+ * hover or focus, so it's only added near the screen on devices that can
+ * hover, or on focus: a big collection would otherwise draw hundreds of discs
+ * (and fetch every label image, which SVG can't lazy-load) that nobody sees.
+ */
+function useDisc(ref: RefObject<HTMLElement | null>) {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || show || !matchMedia('(hover: hover)').matches) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setShow(true)
+      },
+      { rootMargin: '300px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [ref, show])
+  return [show, () => setShow(true)] as const
+}
+
 export function RecordCard({
   record,
   onOpen,
@@ -30,22 +55,28 @@ export function RecordCard({
   onOpen: () => void
 }) {
   const colored = isColoredVinyl(record.look)
+  const ref = useRef<HTMLButtonElement>(null)
+  const [showDisc, revealDisc] = useDisc(ref)
   return (
     <button
+      ref={ref}
       type="button"
       onClick={onOpen}
+      onFocus={revealDisc}
       className="group relative block w-full text-left focus-visible:outline-none"
       aria-label={`${record.artist} – ${record.title}`}
     >
       <div className="relative aspect-square">
         {/* The disc slides out of the sleeve on hover, like pulling it from a crate. */}
-        <VinylDisc
-          look={record.look}
-          labelImage={record.thumb}
-          coverImage={record.coverImage}
-          seed={record.releaseId}
-          className="absolute inset-[4%] transition-transform duration-500 ease-out group-hover:translate-x-[22%] group-focus-visible:translate-x-[22%] group-hover:rotate-45"
-        />
+        {showDisc && (
+          <VinylDisc
+            look={record.look}
+            labelImage={record.thumb}
+            coverImage={record.coverImage}
+            seed={record.releaseId}
+            className="absolute inset-[4%] transition-transform duration-500 ease-out group-hover:translate-x-[22%] group-focus-visible:translate-x-[22%] group-hover:rotate-45"
+          />
+        )}
         <div className="sleeve-shadow relative size-full overflow-hidden rounded-[3px] bg-muted ring-record-1 transition group-focus-visible:ring-2">
           {record.coverImage ? (
             <img
