@@ -35,6 +35,19 @@ export type CollectionSearch = {
   open?: number
 }
 
+/** What "Clear filters" resets: everything but sort, view and the open record. */
+const FILTER_KEYS = [
+  'q',
+  'genre',
+  'style',
+  'decade',
+  'pressed',
+  'artist',
+  'label',
+  'country',
+  'colored',
+] as const satisfies ReadonlyArray<keyof CollectionSearch>
+
 const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v : undefined)
 const int = (v: unknown) =>
   v !== undefined && v !== '' && Number.isInteger(Number(v))
@@ -173,6 +186,7 @@ function CollectionPage() {
       ['country', search.country],
     ] as const
   ).filter(([, v]) => v !== undefined)
+  const filtered = FILTER_KEYS.some((k) => search[k] !== undefined)
 
   const openRecord =
     profile.records.find((r) => r.instanceId === search.open) ?? null
@@ -276,9 +290,11 @@ function CollectionPage() {
         />
       </section>
 
-      {pills.length > 0 && (
+      {filtered && (
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-muted-foreground">Showing</span>
+          <span className="text-muted-foreground">
+            Showing {visible.length} of {profile.records.length}
+          </span>
           {pills.map(([key, value]) => (
             <button
               key={key}
@@ -291,6 +307,17 @@ function CollectionPage() {
               <X className="size-3" />
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() =>
+              setSearch(
+                Object.fromEntries(FILTER_KEYS.map((k) => [k, undefined])),
+              )
+            }
+            className="flex items-center gap-1 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            <X className="size-3" /> Clear filters
+          </button>
         </div>
       )}
 
