@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { runEnrich, runSync } from '#/lib/collection.functions'
-import { profileQuery } from '#/lib/queries'
+import { profileQuery, wantlistQuery } from '#/lib/queries'
 
 export type SyncState =
   | { phase: 'idle' }
@@ -23,8 +23,13 @@ export function useCollectionSync(username: string) {
   const [state, setState] = useState<SyncState>({ phase: 'idle' })
   const running = useRef(false)
 
+  // The wantlist is synced and given artwork alongside the collection.
   const refresh = useCallback(
-    () => qc.invalidateQueries({ queryKey: profileQuery(username).queryKey }),
+    () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: profileQuery(username).queryKey }),
+        qc.invalidateQueries({ queryKey: wantlistQuery(username).queryKey }),
+      ]),
     [qc, username],
   )
 

@@ -142,6 +142,11 @@ create table if not exists public.want_items (
   thumb text,
   cover_image text,
   vinyl_look jsonb,                       -- parsed colour variant, as on releases
+  artists jsonb,                          -- raw Discogs artists, for the artwork search
+  formats jsonb,                          -- raw Discogs formats, for the edition check
+  artwork_url text,                       -- clean album artwork, as on releases
+  artwork_thumb text,
+  artwork_checked_at timestamptz,
   date_added timestamptz,
   primary key (user_id, release_id)
 );

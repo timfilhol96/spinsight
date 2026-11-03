@@ -185,8 +185,12 @@ export const getWantlist = createServerFn({ method: 'GET' })
       title: w.title as string,
       artist: w.artist_display as string,
       year: (w.year as number | null) ?? null,
-      thumb: (w.thumb as string | null) ?? null,
-      coverImage: (w.cover_image as string | null) ?? null,
+      // Clean artwork first, as for records, then the Discogs image.
+      thumb: (w.artwork_thumb as string | null) ?? (w.thumb as string | null),
+      coverImage:
+        (w.artwork_url as string | null) ??
+        (w.cover_image as string | null) ??
+        null,
       look: (w.vinyl_look as VinylLook | null) ?? null,
       dateAdded: (w.date_added as string | null) ?? null,
     }))

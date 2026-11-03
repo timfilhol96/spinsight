@@ -210,6 +210,8 @@ async function syncWantlist(user: UserRow) {
         thumb: b.thumb || null,
         cover_image: b.cover_image || null,
         vinyl_look: parseVinylLook(b.formats),
+        artists: b.artists,
+        formats: b.formats ?? [],
         date_added: w.date_added,
       })
     }
@@ -433,7 +435,84 @@ export async function enrichBatch(
     processed++
   }
 
-  return { processed, remaining: Math.max(0, todo.size - processed) }
+  // Wants get clean artwork too, with whatever time the records left.
+  const wants = await enrichWantArtwork(user, started + budgetMs)
+  return {
+    processed: processed + wants.processed,
+    remaining: Math.max(0, todo.size - processed) + wants.remaining,
+  }
+}
+
+/**
+ * Clean album artwork for the wantlist, found the way collection records get
+ * theirs. Looked up once per want (again after a month if nothing was found),
+ * until `deadline`. Quietly does nothing before migration 013.
+ */
+async function enrichWantArtwork(
+  user: UserRow,
+  deadline: number,
+): Promise<EnrichResult> {
+  const supabase = db()
+  const retryBefore = new Date(
+    Date.now() - REENRICH_AFTER_DAYS * 86_400_000,
+  ).toISOString()
+  const { data: rows, error } = await supabase
+    .from('want_items')
+    .select(
+      'release_id, title, artists, formats, artwork_url, artwork_checked_at',
+    )
+    .eq('user_id', user.id)
+    // Filled by the sync after migration 013; older rows wait for it.
+    .not('artists', 'is', null)
+  if (error) return { processed: 0, remaining: 0 }
+
+  type WantRow = {
+    release_id: number
+    title: string
+    artists: Array<{ id: number; name: string }>
+    formats: DiscogsFormat[] | null
+    artwork_url: string | null
+    artwork_checked_at: string | null
+  }
+  const todo = (rows as WantRow[]).filter(
+    (w) =>
+      !w.artwork_checked_at ||
+      (!w.artwork_url && w.artwork_checked_at < retryBefore),
+  )
+
+  let processed = 0
+  for (const w of todo) {
+    if (Date.now() > deadline) break
+    const searchArtist = cleanArtistName(w.artists[0]?.name ?? '')
+    const editionText = (w.formats ?? [])
+      .map((f) => [f.text, ...(f.descriptions ?? [])].join(' '))
+      .join(' ')
+    const isEdition = editionTokens(`${w.title} ${editionText}`).length > 0
+    let found: Awaited<ReturnType<typeof findArtwork>>
+    try {
+      found = searchArtist
+        ? await findArtwork(searchArtist, w.title, editionText)
+        : { album: null, edition: null }
+    } catch {
+      // Sources down: stop here and try again on the next run.
+      break
+    }
+    // Same rule as records: an edition only takes its own edition's cover,
+    // otherwise it keeps the Discogs image.
+    const chosen = isEdition ? found.edition : found.album
+    const { error: upErr } = await supabase
+      .from('want_items')
+      .update({
+        artwork_url: chosen?.url ?? null,
+        artwork_thumb: chosen?.thumb ?? null,
+        artwork_checked_at: new Date().toISOString(),
+      })
+      .eq('user_id', user.id)
+      .eq('release_id', w.release_id)
+    if (upErr) throw upErr
+    processed++
+  }
+  return { processed, remaining: todo.length - processed }
 }
 
 async function enrichArtists(artists: Array<{ id: number; name: string }>) {
