@@ -180,6 +180,8 @@ export type DiscogsWantsPage = {
       title: string
       year: number
       thumb: string
+      cover_image: string
+      formats: DiscogsFormat[]
       artists: DiscogsArtistRef[]
     }
   }>

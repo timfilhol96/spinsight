@@ -1,7 +1,8 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { REACTIONS, USERNAME_RE } from '#/lib/friends'
-import type { FriendsActivity, WantItem } from '#/lib/friends'
+import type { FriendsActivity, WantlistItem } from '#/lib/friends'
+import type { VinylLook } from '#/lib/vinyl-color'
 
 // Server functions for following people and the Friends tab. Server-only
 // modules are imported inside handlers, as in collection.functions.ts.
@@ -154,12 +155,15 @@ export const reactToPlay = createServerFn({ method: 'POST' })
     return { ok: true }
   })
 
-/** Someone's Discogs wantlist, for the compare page. Same visibility as the collection. */
+/**
+ * Someone's Discogs wantlist, for the Wants page and the compare page. Same
+ * visibility as the collection.
+ */
 export const getWantlist = createServerFn({ method: 'GET' })
   .validator((d: { username: string }) =>
     z.object({ username: Username }).parse(d),
   )
-  .handler(async ({ data }): Promise<WantItem[]> => {
+  .handler(async ({ data }): Promise<WantlistItem[]> => {
     const { currentUser } = await import('#/lib/session.server')
     const { db } = await import('#/lib/supabase.server')
     const { findUser } = await import('#/lib/friends.server')
@@ -168,9 +172,10 @@ export const getWantlist = createServerFn({ method: 'GET' })
       findUser(data.username),
     ])
     if (!owner || (!owner.is_public && owner.id !== viewer?.id)) return []
+    // '*' so this keeps working before migration 011 adds cover and colour.
     const { data: rows, error } = await db()
       .from('want_items')
-      .select('release_id, master_id, title, artist_display, year, thumb')
+      .select('*')
       .eq('user_id', owner.id)
       .order('date_added', { ascending: false })
     if (error) return []
@@ -181,5 +186,8 @@ export const getWantlist = createServerFn({ method: 'GET' })
       artist: w.artist_display as string,
       year: (w.year as number | null) ?? null,
       thumb: (w.thumb as string | null) ?? null,
+      coverImage: (w.cover_image as string | null) ?? null,
+      look: (w.vinyl_look as VinylLook | null) ?? null,
+      dateAdded: (w.date_added as string | null) ?? null,
     }))
   })

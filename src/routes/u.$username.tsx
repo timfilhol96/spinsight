@@ -235,6 +235,14 @@ function ProfileLayout() {
           </span>
         </Link>
         <Link
+          to="/u/$username/wants"
+          params={{ username }}
+          className={tabClass}
+          activeProps={activeTab}
+        >
+          Wants
+        </Link>
+        <Link
           to="/u/$username/insights"
           params={{ username }}
           className={tabClass}

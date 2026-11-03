@@ -208,6 +208,8 @@ async function syncWantlist(user: UserRow) {
         artist_display: artistDisplay(b.artists),
         year: b.year || null,
         thumb: b.thumb || null,
+        cover_image: b.cover_image || null,
+        vinyl_look: parseVinylLook(b.formats),
         date_added: w.date_added,
       })
     }

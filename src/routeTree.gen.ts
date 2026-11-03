@@ -25,6 +25,7 @@ import { Route as FriendsUsernameYearRouteImport } from './routes/friends.$usern
 import { Route as UUsernameIndexRouteImport } from './routes/u.$username.index'
 import { Route as UUsernameInsightsRouteImport } from './routes/u.$username.insights'
 import { Route as UUsernamePickRouteImport } from './routes/u.$username.pick'
+import { Route as UUsernameWantsRouteImport } from './routes/u.$username.wants'
 import { Route as UUsernameWrappedRouteImport } from './routes/u.$username.wrapped'
 import { Route as ApiAuthDiscogsCallbackRouteImport } from './routes/api/auth/discogs/callback'
 import { Route as ApiAuthDiscogsStartRouteImport } from './routes/api/auth/discogs/start'
@@ -109,6 +110,11 @@ const UUsernamePickRoute = UUsernamePickRouteImport.update({
   path: '/pick',
   getParentRoute: () => UUsernameRoute,
 } as any)
+const UUsernameWantsRoute = UUsernameWantsRouteImport.update({
+  id: '/wants',
+  path: '/wants',
+  getParentRoute: () => UUsernameRoute,
+} as any)
 const UUsernameWrappedRoute = UUsernameWrappedRouteImport.update({
   id: '/wrapped',
   path: '/wrapped',
@@ -140,6 +146,7 @@ export interface FileRoutesByFullPath {
   '/friends/$username/year': typeof FriendsUsernameYearRoute
   '/u/$username/insights': typeof UUsernameInsightsRoute
   '/u/$username/pick': typeof UUsernamePickRoute
+  '/u/$username/wants': typeof UUsernameWantsRoute
   '/u/$username/wrapped': typeof UUsernameWrappedRoute
   '/friends/$username/': typeof FriendsUsernameIndexRoute
   '/u/$username/': typeof UUsernameIndexRoute
@@ -159,6 +166,7 @@ export interface FileRoutesByTo {
   '/friends/$username/year': typeof FriendsUsernameYearRoute
   '/u/$username/insights': typeof UUsernameInsightsRoute
   '/u/$username/pick': typeof UUsernamePickRoute
+  '/u/$username/wants': typeof UUsernameWantsRoute
   '/u/$username/wrapped': typeof UUsernameWrappedRoute
   '/friends/$username': typeof FriendsUsernameIndexRoute
   '/u/$username': typeof UUsernameIndexRoute
@@ -181,6 +189,7 @@ export interface FileRoutesById {
   '/friends/$username/year': typeof FriendsUsernameYearRoute
   '/u/$username/insights': typeof UUsernameInsightsRoute
   '/u/$username/pick': typeof UUsernamePickRoute
+  '/u/$username/wants': typeof UUsernameWantsRoute
   '/u/$username/wrapped': typeof UUsernameWrappedRoute
   '/friends/$username/': typeof FriendsUsernameIndexRoute
   '/u/$username/': typeof UUsernameIndexRoute
@@ -204,6 +213,7 @@ export interface FileRouteTypes {
     | '/friends/$username/year'
     | '/u/$username/insights'
     | '/u/$username/pick'
+    | '/u/$username/wants'
     | '/u/$username/wrapped'
     | '/friends/$username/'
     | '/u/$username/'
@@ -223,6 +233,7 @@ export interface FileRouteTypes {
     | '/friends/$username/year'
     | '/u/$username/insights'
     | '/u/$username/pick'
+    | '/u/$username/wants'
     | '/u/$username/wrapped'
     | '/friends/$username'
     | '/u/$username'
@@ -244,6 +255,7 @@ export interface FileRouteTypes {
     | '/friends/$username/year'
     | '/u/$username/insights'
     | '/u/$username/pick'
+    | '/u/$username/wants'
     | '/u/$username/wrapped'
     | '/friends/$username/'
     | '/u/$username/'
@@ -381,6 +393,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UUsernamePickRouteImport
       parentRoute: typeof UUsernameRoute
     }
+    '/u/$username/wants': {
+      id: '/u/$username/wants'
+      path: '/wants'
+      fullPath: '/u/$username/wants'
+      preLoaderRoute: typeof UUsernameWantsRouteImport
+      parentRoute: typeof UUsernameRoute
+    }
     '/u/$username/wrapped': {
       id: '/u/$username/wrapped'
       path: '/wrapped'
@@ -422,6 +441,7 @@ const FriendsUsernameRouteWithChildren = FriendsUsernameRoute._addFileChildren(
 interface UUsernameRouteChildren {
   UUsernameInsightsRoute: typeof UUsernameInsightsRoute
   UUsernamePickRoute: typeof UUsernamePickRoute
+  UUsernameWantsRoute: typeof UUsernameWantsRoute
   UUsernameWrappedRoute: typeof UUsernameWrappedRoute
   UUsernameIndexRoute: typeof UUsernameIndexRoute
 }
@@ -429,6 +449,7 @@ interface UUsernameRouteChildren {
 const UUsernameRouteChildren: UUsernameRouteChildren = {
   UUsernameInsightsRoute: UUsernameInsightsRoute,
   UUsernamePickRoute: UUsernamePickRoute,
+  UUsernameWantsRoute: UUsernameWantsRoute,
   UUsernameWrappedRoute: UUsernameWrappedRoute,
   UUsernameIndexRoute: UUsernameIndexRoute,
 }

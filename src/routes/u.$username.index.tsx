@@ -8,6 +8,7 @@ import { Input } from '#/components/ui/input'
 import type { CollectionRecord } from '#/lib/records'
 import { decadeOf, primaryLabel } from '#/lib/stats'
 import { useProfile } from '#/lib/use-profile'
+import { shelfOrder } from '#/lib/utils'
 import { isColoredVinyl } from '#/lib/vinyl-color'
 
 // Filters live in the URL so Insights can link to "show me those records".
@@ -276,17 +277,6 @@ function CollectionPage() {
     </>
   )
 }
-
-const collator = new Intl.Collator(undefined, { numeric: true })
-
-/**
- * Shelf order, like in a record shop: "The Beatles" and "(The) Melvins" sort
- * under B and M, "...And The Machines" under A.
- */
-const shelfOrder = (a: string, b: string) =>
-  collator.compare(shelfKey(a), shelfKey(b))
-const shelfKey = (s: string) =>
-  s.replace(/^[^\p{L}\p{N}]+/u, '').replace(/^the\b[^\p{L}\p{N}]*/iu, '')
 
 const selectClass = (active: boolean) =>
   'h-9 rounded-md border bg-card px-2 text-sm ' +

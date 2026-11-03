@@ -138,6 +138,8 @@ create table if not exists public.want_items (
   artist_display text not null,
   year int,
   thumb text,
+  cover_image text,
+  vinyl_look jsonb,                       -- parsed colour variant, as on releases
   date_added timestamptz,
   primary key (user_id, release_id)
 );

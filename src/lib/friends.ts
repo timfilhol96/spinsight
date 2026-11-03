@@ -102,6 +102,14 @@ export type WantItem = {
   thumb: string | null
 }
 
+/** A want as the Wants page shows it. */
+export type WantlistItem = WantItem & {
+  coverImage: string | null
+  /** Null until the first sync after migration 011, or for non-vinyl wants. */
+  look: VinylLook | null
+  dateAdded: string | null
+}
+
 export type FriendsActivity = {
   sharesListening: boolean
   friends: Friend[]
