@@ -50,9 +50,12 @@ function useDisc(ref: RefObject<HTMLElement | null>) {
 export function RecordCard({
   record,
   onOpen,
+  pressings = 1,
 }: {
   record: CollectionRecord
   onOpen: () => void
+  /** Album view: how many pressings of this album the card stands for. */
+  pressings?: number
 }) {
   const colored = isColoredVinyl(record.look)
   const ref = useRef<HTMLButtonElement>(null)
@@ -64,9 +67,13 @@ export function RecordCard({
       onClick={onOpen}
       onFocus={revealDisc}
       className="group relative block w-full text-left focus-visible:outline-none"
-      aria-label={`${record.artist} – ${record.title}`}
+      aria-label={`${record.artist} – ${record.title}${pressings > 1 ? `, ${pressings} pressings` : ''}`}
     >
       <div className="relative aspect-square">
+        {/* More than one pressing: a second sleeve peeks out behind. */}
+        {pressings > 1 && (
+          <div className="sleeve-shadow absolute inset-0 translate-x-[5%] -translate-y-[5%] rotate-3 rounded-[3px] bg-muted ring-1 ring-border" />
+        )}
         {/* The disc slides out of the sleeve on hover, like pulling it from a crate. */}
         {showDisc && (
           <VinylDisc
@@ -96,13 +103,18 @@ export function RecordCard({
             {record.originalYear}
           </span>
         ) : null}
+        {pressings > 1 && (
+          <span className="absolute -right-2 -bottom-2 rounded-full bg-record-1 px-2 py-0.5 text-[11px] font-semibold text-record-ink shadow">
+            {pressings} pressings
+          </span>
+        )}
       </div>
       <div className="mt-3 pr-2">
         <p className="truncate font-semibold leading-tight">{record.title}</p>
         <p className="truncate text-sm text-muted-foreground">
           {record.artist}
         </p>
-        {colored && (
+        {colored && pressings === 1 && (
           <p className="mt-1 flex items-center gap-1.5 truncate font-mono text-[11px] text-muted-foreground">
             <VinylSwatch colors={record.look.colors} />
             {record.look.label}

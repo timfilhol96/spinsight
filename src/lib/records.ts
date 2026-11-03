@@ -36,6 +36,10 @@ export function detailsOutdated(
   )
 }
 
+/** "LP", '7"', '12"': the size Discogs lists among the format descriptions. */
+export const discSize = (r: { formatDescriptions: string[] }) =>
+  r.formatDescriptions.find((d) => /^(LP|\d+")$/.test(d)) ?? null
+
 /** Runtime assumed when a record's length is unknown (a typical LP). */
 export const DEFAULT_RUNTIME_SEC = 45 * 60
 

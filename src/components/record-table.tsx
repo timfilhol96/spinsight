@@ -1,15 +1,12 @@
 import { ChevronDown } from 'lucide-react'
 import { VinylSwatch } from '#/components/record-card'
+import { discSize } from '#/lib/records'
 import type { CollectionRecord } from '#/lib/records'
 import { primaryLabel } from '#/lib/stats'
 import { cn } from '#/lib/utils'
 import { isColoredVinyl } from '#/lib/vinyl-color'
 
 export type TableSort = 'added' | 'artist' | 'title' | 'year'
-
-/** "LP", '7"', '12"': the size Discogs lists among the descriptions. */
-const sizeOf = (r: CollectionRecord) =>
-  r.formatDescriptions.find((d) => /^(LP|\d+")$/.test(d)) ?? null
 
 // Fixed locale and zone so the server and the browser print the same date.
 const addedFmt = new Intl.DateTimeFormat('en-GB', {
@@ -78,7 +75,7 @@ export function RecordTable({
         <tbody>
           {records.map((r) => {
             const label = r.labels.find((l) => l.name === primaryLabel(r))
-            const size = sizeOf(r)
+            const size = discSize(r)
             return (
               <tr
                 key={r.instanceId}

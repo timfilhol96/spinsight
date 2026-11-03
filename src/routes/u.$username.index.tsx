@@ -1,12 +1,14 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
-import { LayoutGrid, Rows3, Search, X } from 'lucide-react'
+import { Layers, LayoutGrid, Rows3, Search, X } from 'lucide-react'
+import { PressingPicker } from '#/components/pressing-picker'
 import { RecordCard } from '#/components/record-card'
 import { RecordSheet } from '#/components/record-sheet'
 import { RecordTable } from '#/components/record-table'
 import type { TableSort } from '#/components/record-table'
 import { VinylDisc } from '#/components/vinyl-disc'
 import { Input } from '#/components/ui/input'
+import { albumKey } from '#/lib/friends'
 import type { CollectionRecord } from '#/lib/records'
 import { decadeOf, primaryLabel } from '#/lib/stats'
 import { useProfile } from '#/lib/use-profile'
@@ -27,8 +29,8 @@ export type CollectionSearch = {
   country?: string
   colored?: boolean
   sort?: TableSort
-  /** Grid when absent. */
-  view?: 'table'
+  /** Grid when absent. Album: one card per album, however many pressings. */
+  view?: 'table' | 'album'
   /** Instance id of the open record card (the now-playing dock links here). */
   open?: number
 }
@@ -54,7 +56,7 @@ export const Route = createFileRoute('/u/$username/')({
       s.sort === 'artist' || s.sort === 'title' || s.sort === 'year'
         ? s.sort
         : undefined,
-    view: s.view === 'table' ? s.view : undefined,
+    view: s.view === 'table' || s.view === 'album' ? s.view : undefined,
     open: int(s.open),
   }),
   head: ({ params }) => ({
@@ -134,6 +136,29 @@ function CollectionPage() {
     return list
   }, [profile.records, search])
 
+  // Album view: pressings of one album together, placed where the first of
+  // them falls in the sorted list. The album's own pressing (not a deluxe or
+  // anniversary edition) leads and gives the card its cover.
+  const albums = useMemo(() => {
+    if (search.view !== 'album') return []
+    const groups = new Map<string, CollectionRecord[]>()
+    for (const r of visible) {
+      const group = groups.get(albumKey(r))
+      if (group) group.push(r)
+      else groups.set(albumKey(r), [r])
+    }
+    return [...groups.values()].map((g) =>
+      g.length === 1
+        ? g
+        : [...g].sort(
+            (a, b) =>
+              Number(a.isSpecialEdition) - Number(b.isSpecialEdition) ||
+              (a.year ?? 9999) - (b.year ?? 9999),
+          ),
+    )
+  }, [visible, search.view])
+  const [picking, setPicking] = useState<CollectionRecord[]>([])
+
   // Filters only Insights links to (no control of their own) get pills.
   const pills = (
     [
@@ -180,7 +205,7 @@ function CollectionPage() {
         <select
           value={search.genre ?? ''}
           onChange={(e) => setSearch({ genre: e.target.value || undefined })}
-          className={selectClass(!!search.genre)}
+          className={selectClass(!!search.genre) + ' max-w-40'}
           aria-label="Genre"
         >
           <option value="">All genres</option>
@@ -277,6 +302,21 @@ function CollectionPage() {
             onOpen={(r) => setSearch({ open: r.instanceId })}
           />
         )
+      ) : search.view === 'album' ? (
+        <section className="mt-8 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-5">
+          {albums.map((g) => (
+            <RecordCard
+              key={albumKey(g[0])}
+              record={g[0]}
+              pressings={g.length}
+              onOpen={() =>
+                g.length > 1
+                  ? setPicking(g)
+                  : setSearch({ open: g[0].instanceId })
+              }
+            />
+          ))}
+        </section>
       ) : (
         <section className="mt-8 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-5">
           {visible.map((r) => (
@@ -294,6 +334,14 @@ function CollectionPage() {
         </p>
       )}
 
+      <PressingPicker
+        pressings={picking}
+        onPick={(r) => {
+          setPicking([])
+          setSearch({ open: r.instanceId })
+        }}
+        onOpenChange={(open) => !open && setPicking([])}
+      />
       <RecordSheet
         record={openRecord}
         onOpenChange={(open) => !open && setSearch({ open: undefined })}
@@ -342,7 +390,7 @@ function ArtistFilter({
         }}
         placeholder="Any artist"
         aria-label="Artist"
-        className={'h-9 w-44 bg-card pr-8 ' + (value ? 'border-record-1' : '')}
+        className={'h-9 w-40 bg-card pr-8 ' + (value ? 'border-record-1' : '')}
       />
       {text && (
         <button
@@ -370,6 +418,7 @@ type View = NonNullable<CollectionSearch['view']> | 'grid'
 
 const VIEWS = [
   { view: 'grid', label: 'Grid', icon: LayoutGrid },
+  { view: 'album', label: 'Album', icon: Layers },
   { view: 'table', label: 'Table', icon: Rows3 },
 ] as const
 
