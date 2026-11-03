@@ -73,6 +73,9 @@ export function demoProfile(): Profile {
       communityWant: 900 + ((i * 411) % 8000),
       communityRating: 4 + ((i * 3) % 10) / 10,
       lowestPrice: { amount: 22 + ((i * 7) % 30), currency: 'USD' },
+      // Most, not all: people rarely remember every price.
+      pricePaid:
+        i % 4 === 3 ? null : { amount: 18 + ((i * 11) % 25), currency: 'USD' },
       numForSale: 10 + ((i * 13) % 120),
       durationSec: a.durationSec,
       durationSource: 'itunes',

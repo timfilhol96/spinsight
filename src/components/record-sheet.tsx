@@ -14,6 +14,7 @@ import { VinylSwatch } from '#/components/record-card'
 import { VinylDisc } from '#/components/vinyl-disc'
 import { CoverPicker } from '#/components/cover-picker'
 import { DiscPhotoEditor } from '#/components/disc-photo-editor'
+import { PricePaid } from '#/components/price-paid'
 import {
   PastPlayButton,
   PlayButton,
@@ -127,6 +128,7 @@ function RecordDetail({ record }: { record: CollectionRecord }) {
 
       {isOwner && (
         <div className="space-y-2">
+          <PricePaid record={record} />
           <CoverPicker record={record} />
           <DiscPhotoEditor record={record} />
         </div>

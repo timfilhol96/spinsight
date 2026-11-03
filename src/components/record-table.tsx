@@ -3,6 +3,7 @@ import { VinylSwatch } from '#/components/record-card'
 import { discSize } from '#/lib/records'
 import type { CollectionRecord } from '#/lib/records'
 import { primaryLabel } from '#/lib/stats'
+import { useMoney, useProfile } from '#/lib/use-profile'
 import { cn } from '#/lib/utils'
 import { isColoredVinyl } from '#/lib/vinyl-color'
 
@@ -31,6 +32,8 @@ export function RecordTable({
   onSort: (sort: TableSort) => void
   onOpen: (r: CollectionRecord) => void
 }) {
+  const { isOwner } = useProfile()
+  const money = useMoney()
   const header = (label: string, key?: TableSort, className?: string) => (
     <th
       scope="col"
@@ -69,6 +72,9 @@ export function RecordTable({
             {header('Label', undefined, 'hidden lg:table-cell')}
             {header('Format', undefined, 'hidden md:table-cell')}
             {header('Added', 'added', 'hidden md:table-cell')}
+            {/* What was paid is private, like the record sheet's price. */}
+            {isOwner &&
+              header('Paid', undefined, 'hidden text-right sm:table-cell')}
             {header('Plays', undefined, 'text-right')}
           </tr>
         </thead>
@@ -148,6 +154,13 @@ export function RecordTable({
                 <td className="hidden px-2 whitespace-nowrap text-muted-foreground md:table-cell">
                   {r.dateAdded ? addedFmt.format(new Date(r.dateAdded)) : '—'}
                 </td>
+                {isOwner && (
+                  <td className="hidden px-2 text-right whitespace-nowrap tabular-nums sm:table-cell">
+                    {money(r.pricePaid) ?? (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                )}
                 <td className="px-2 text-right tabular-nums">
                   {r.playCount || (
                     <span className="text-muted-foreground">0</span>

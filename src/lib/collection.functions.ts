@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { CURRENCIES, parseMoney } from '#/lib/currency'
+import type { Money } from '#/lib/currency'
 import type { DiscogsRelease } from '#/lib/discogs.server'
 import { DEFAULT_RUNTIME_SEC, detailsOutdated } from '#/lib/records'
 import type {
@@ -117,9 +118,8 @@ export const getProfile = createServerFn({ method: 'GET' })
         timed('items', async () =>
           supabase
             .from('collection_items')
-            .select(
-              'instance_id, date_added, rating, cover_url, cover_thumb, disc_photo, disc_colors, release:releases!inner(*)',
-            )
+            // '*' so a column added by a migration not yet run is just absent.
+            .select('*, release:releases!inner(*)')
             .eq('user_id', owner.id)
             .order('date_added', { ascending: false }),
         ),
@@ -233,6 +233,13 @@ export const getProfile = createServerFn({ method: 'GET' })
                 currency: r.price_currency ?? 'USD',
               }
             : null,
+        pricePaid:
+          isOwner && it.price_paid != null && it.price_paid_currency
+            ? {
+                amount: Number(it.price_paid),
+                currency: it.price_paid_currency as string,
+              }
+            : null,
         numForSale: r.num_for_sale,
         durationSec: r.duration_sec,
         durationSource: r.duration_source ?? null,
@@ -328,6 +335,41 @@ export const setPreferredCurrency = createServerFn({ method: 'POST' })
       .eq('id', user.id)
     if (error) throw new Error(error.message)
     return { currency: data.currency }
+  })
+
+/** What the owner paid for one copy; null clears it. */
+export const setPricePaid = createServerFn({ method: 'POST' })
+  .validator((d: { instanceId: number; price: Money | null }) =>
+    z
+      .object({
+        instanceId: z.number().int().positive(),
+        price: z
+          .object({
+            amount: z.number().min(0).max(99_999_999),
+            currency: z.enum(CURRENCIES),
+          })
+          .nullable(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { requireUser } = await import('#/lib/session.server')
+    const { db } = await import('#/lib/supabase.server')
+    const user = await requireUser()
+    const { data: rows, error } = await db()
+      .from('collection_items')
+      .update({
+        price_paid: data.price
+          ? Math.round(data.price.amount * 100) / 100
+          : null,
+        price_paid_currency: data.price?.currency ?? null,
+      })
+      .eq('instance_id', data.instanceId)
+      .eq('user_id', user.id)
+      .select('instance_id')
+    if (error) throw new Error(error.message)
+    if (!rows.length) throw new Error('That record is not in your collection.')
+    return { ok: true }
   })
 
 const PlayContext = z

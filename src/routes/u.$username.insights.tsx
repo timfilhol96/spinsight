@@ -102,8 +102,9 @@ function InsightsPage() {
       badges: S.badges(records),
       onThisDay: S.onThisDay(records),
       listening: S.listening(records, profile.plays),
+      spending: S.spending(records, profile.currency, profile.rates),
     }
-  }, [records, profile.plays])
+  }, [records, profile.plays, profile.currency, profile.rates])
 
   if (!records.length) {
     return (
@@ -115,6 +116,7 @@ function InsightsPage() {
 
   const s = stats.summary
   const n = s.records
+  const spent = stats.spending
   const decadeData = stats.decades[basis]
   const peakDecade = [...decadeData].sort((a, b) => b.count - a.count)[0]
   const enrichedShare = s.enriched / n
@@ -589,6 +591,92 @@ function InsightsPage() {
           </div>
         )}
       </Section>
+
+      {/* ---------- spending (owner only: prices paid are private) ---------- */}
+      {profile.isOwner && (
+        <Section kicker="Money" title="What you've spent">
+          {!spent ? (
+            <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
+              Discogs doesn't keep what you paid, so Spinsight can: open any
+              record and use “Add price”. Totals, splurges and bargains show up
+              here, visible only to you.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-2 gap-3 md:col-span-2 lg:grid-cols-4">
+                <StatTile
+                  label="Spent"
+                  value={money(spent.spent, { compact: true })}
+                  sub={`on ${spent.priced} of ${n} records`}
+                />
+                <StatTile
+                  label="Average paid"
+                  value={money(
+                    {
+                      amount: spent.spent.amount / spent.priced,
+                      currency: spent.spent.currency,
+                    },
+                    { compact: true },
+                  )}
+                  sub="per record"
+                />
+                <StatTile
+                  label="Worth today"
+                  value={
+                    spent.worth ? money(spent.worth, { compact: true }) : '—'
+                  }
+                  sub={
+                    spent.worth
+                      ? `${spent.worthCount} with a listing`
+                      : 'once record details are fetched'
+                  }
+                />
+                <StatTile
+                  label="Change in value"
+                  value={
+                    spent.worth && spent.paidForWorth?.amount
+                      ? `${spent.worth.amount >= spent.paidForWorth.amount ? '+' : '−'}${Math.round(
+                          (Math.abs(
+                            spent.worth.amount - spent.paidForWorth.amount,
+                          ) /
+                            spent.paidForWorth.amount) *
+                            100,
+                        )}%`
+                      : '—'
+                  }
+                  sub={
+                    spent.paidForWorth
+                      ? `vs ${money(spent.paidForWorth, { compact: true })} paid`
+                      : undefined
+                  }
+                />
+              </div>
+              <RankCard
+                title="Biggest splurges"
+                subtitle="Most paid for one record"
+                records={spent.splurges.map((x) => x.record)}
+                metric={(r) =>
+                  money(
+                    spent.splurges.find((x) => x.record === r)?.paid ?? null,
+                    { compact: true },
+                  )
+                }
+                onOpen={open}
+              />
+              <RankCard
+                title="Best buys"
+                subtitle="Lowest listing today, minus what you paid"
+                records={spent.bargains.map((x) => x.record)}
+                metric={(r) => {
+                  const gain = spent.bargains.find((x) => x.record === r)?.gain
+                  return gain ? `+${money(gain, { compact: true })}` : null
+                }}
+                onOpen={open}
+              />
+            </div>
+          )}
+        </Section>
+      )}
 
       {/* ---------- badges ---------- */}
       <Section kicker="Achievements" title="Badges">

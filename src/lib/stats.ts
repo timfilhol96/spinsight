@@ -1,5 +1,7 @@
 // Collection statistics: pure derivations from a list of records, computed in
 // the browser (collections are small enough, and friends' pages reuse them).
+import { convert } from '#/lib/currency'
+import type { Money, Rates } from '#/lib/currency'
 import type { CollectionRecord, Play } from '#/lib/records'
 import { isColoredVinyl } from '#/lib/vinyl-color'
 
@@ -240,6 +242,76 @@ export function rarity(records: CollectionRecord[], limit = 5) {
     // Prices are all fetched in USD, so amounts compare directly.
     priciest: by((r) => r.lowestPrice?.amount ?? null, -1),
   }
+}
+
+// ---------- spending ----------
+
+export type Spending = {
+  /** Records with a price paid that converts into `currency`. */
+  priced: number
+  spent: Money
+  /** Lowest current listings of the priced records that have one. */
+  worth: Money | null
+  /** What was paid for just those records, to compare with `worth`. */
+  paidForWorth: Money | null
+  /** How many priced records `worth` covers. */
+  worthCount: number
+  splurges: Array<{ record: CollectionRecord; paid: Money }>
+  /** Biggest rise from what was paid to the lowest listing today. */
+  bargains: Array<{ record: CollectionRecord; gain: Money }>
+}
+
+/**
+ * What the owner paid against what the records go for now, summed in
+ * `currency` (the display currency, else the one most prices were paid in).
+ * Null when no price has been entered.
+ */
+export function spending(
+  records: CollectionRecord[],
+  displayCurrency: string | null,
+  rates: Rates | null,
+  limit = 5,
+): Spending | null {
+  const paid = records.filter((r) => r.pricePaid)
+  if (!paid.length) return null
+  const currency =
+    displayCurrency ?? mostCommon(paid.map((r) => r.pricePaid!.currency))
+  const rows = paid.flatMap((record) => {
+    const p = convert(record.pricePaid!, currency, rates)
+    if (!p) return []
+    const w = record.lowestPrice && convert(record.lowestPrice, currency, rates)
+    return [{ record, paid: p.amount, worth: w ? w.amount : null }]
+  })
+  if (!rows.length) return null
+  const money = (amount: number): Money => ({ amount, currency })
+  const valued = rows.filter((r) => r.worth != null)
+  return {
+    priced: rows.length,
+    spent: money(rows.reduce((s, r) => s + r.paid, 0)),
+    worth: valued.length
+      ? money(valued.reduce((s, r) => s + r.worth!, 0))
+      : null,
+    paidForWorth: valued.length
+      ? money(valued.reduce((s, r) => s + r.paid, 0))
+      : null,
+    worthCount: valued.length,
+    splurges: [...rows]
+      .sort((a, b) => b.paid - a.paid)
+      .slice(0, limit)
+      .map((r) => ({ record: r.record, paid: money(r.paid) })),
+    bargains: valued
+      .map((r) => ({ record: r.record, gain: r.worth! - r.paid }))
+      .filter((r) => r.gain > 0)
+      .sort((a, b) => b.gain - a.gain)
+      .slice(0, limit)
+      .map((r) => ({ record: r.record, gain: money(r.gain) })),
+  }
+}
+
+function mostCommon(items: string[]): string {
+  const counts = new Map<string, number>()
+  for (const i of items) counts.set(i, (counts.get(i) ?? 0) + 1)
+  return [...counts].sort((a, b) => b[1] - a[1])[0][0]
 }
 
 // ---------- on this day ----------

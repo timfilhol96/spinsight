@@ -102,6 +102,8 @@ export type CollectionRecord = {
   communityRating: number | null
   /** Lowest current Discogs listing. */
   lowestPrice: Money | null
+  /** What the owner paid, as they typed it in. Only sent to the owner. */
+  pricePaid: Money | null
   numForSale: number | null
   durationSec: number | null
   /** 'discogs' (tracklist) or the streaming service the runtime came from. */

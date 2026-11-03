@@ -88,6 +88,8 @@ create table if not exists public.collection_items (
   cover_thumb text,
   disc_photo jsonb,                       -- photo used as the disc + crop circle
   disc_colors text[],                     -- colours sampled from that circle
+  price_paid numeric(10, 2) check (price_paid >= 0), -- typed in by the owner, owner-only
+  price_paid_currency text,
   created_at timestamptz not null default now()
 );
 create index if not exists collection_items_user_idx on public.collection_items (user_id);

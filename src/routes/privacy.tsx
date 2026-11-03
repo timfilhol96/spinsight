@@ -33,17 +33,19 @@ function PrivacyPage() {
         never sent to your browser.
       </p>
       <p>
-        <strong>From Discogs, when you sync</strong> (and once a day
-        automatically): the records in your collection (with the folder, your
-        rating and the date you added each one), your wantlist, and the
-        collection value estimate Discogs shows you.
+        <strong>From Discogs, when you sync</strong> (and automatically once a
+        day, and when you come back after a few hours): the records in your
+        collection (with the folder, your rating and the date you added each
+        one), your wantlist, and the collection value estimate Discogs shows
+        you.
       </p>
       <p>
         <strong>Things you do in Spinsight:</strong> records you mark as playing
         and when, plus the picker answers that led to a pick (mood, a weather
         category like "rainy", how much time you had); covers and disc photos
-        you choose; your currency and visibility settings; who you follow; and
-        emoji you put on friends' spins.
+        you choose; prices you enter for what you paid; your currency and
+        visibility settings; who you follow; and emoji you put on friends'
+        spins.
       </p>
       <p>
         <strong>Release details</strong> such as titles, tracklists, artwork,
@@ -93,7 +95,8 @@ function PrivacyPage() {
           other followers. "Spin it too" shows the friend's name on your spin.
         </li>
         <li>
-          <strong>Your collection value</strong> is only ever shown to you.
+          <strong>Your collection value</strong> and{' '}
+          <strong>what you paid</strong> for records are only ever shown to you.
         </li>
       </ul>
 

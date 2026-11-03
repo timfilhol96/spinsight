@@ -22,6 +22,7 @@ const VISIBILITY: Array<[string, string, string, string]> = [
     'You',
   ],
   ['Collection value', 'Only you', 'Only you', 'You'],
+  ['What you paid for records', 'Only you', 'Only you', 'You'],
   ['Wantlist (as on Discogs)', 'Anyone with the link', 'Only you', 'You'],
   ['Who you follow', 'The people you follow', 'The people you follow', 'You'],
   ['Discogs access key', 'Nobody, not even you', 'Nobody', 'Server only'],
