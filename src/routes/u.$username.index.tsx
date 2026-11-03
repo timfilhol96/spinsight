@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Layers, LayoutGrid, Rows3, Search, X } from 'lucide-react'
 import { PressingPicker } from '#/components/pressing-picker'
 import { RecordCard } from '#/components/record-card'
@@ -89,6 +89,8 @@ function CollectionPage() {
   const profile = useProfile()
   const search = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
+  const storedView = useStoredView()
+  const view: View = search.view ?? storedView ?? 'grid'
 
   const setSearch = (patch: Partial<CollectionSearch>) =>
     navigate({
@@ -140,7 +142,7 @@ function CollectionPage() {
   // them falls in the sorted list. The album's own pressing (not a deluxe or
   // anniversary edition) leads and gives the card its cover.
   const albums = useMemo(() => {
-    if (search.view !== 'album') return []
+    if (view !== 'album') return []
     const groups = new Map<string, CollectionRecord[]>()
     for (const r of visible) {
       const group = groups.get(albumKey(r))
@@ -156,7 +158,7 @@ function CollectionPage() {
               (a.year ?? 9999) - (b.year ?? 9999),
           ),
     )
-  }, [visible, search.view])
+  }, [visible, view])
   const [picking, setPicking] = useState<CollectionRecord[]>([])
 
   // Filters only Insights links to (no control of their own) get pills.
@@ -266,10 +268,11 @@ function CollectionPage() {
           </select>
         </label>
         <ViewSwitch
-          view={search.view ?? 'grid'}
-          onChange={(view) =>
-            setSearch({ view: view === 'grid' ? undefined : view })
-          }
+          view={view}
+          onChange={(next) => {
+            storeView(next)
+            setSearch({ view: next === 'grid' ? undefined : next })
+          }}
         />
       </section>
 
@@ -291,7 +294,7 @@ function CollectionPage() {
         </div>
       )}
 
-      {search.view === 'table' ? (
+      {view === 'table' ? (
         visible.length > 0 && (
           <RecordTable
             records={visible}
@@ -302,7 +305,7 @@ function CollectionPage() {
             onOpen={(r) => setSearch({ open: r.instanceId })}
           />
         )
-      ) : search.view === 'album' ? (
+      ) : view === 'album' ? (
         <section className="mt-8 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-5">
           {albums.map((g) => (
             <RecordCard
@@ -415,6 +418,44 @@ function ArtistFilter({
 }
 
 type View = NonNullable<CollectionSearch['view']> | 'grid'
+
+// The last view picked is remembered per browser; a view in the URL wins.
+const VIEW_KEY = 'spinsight-collection-view'
+const viewListeners = new Set<() => void>()
+
+function readStoredView(): View | null {
+  try {
+    const v = localStorage.getItem(VIEW_KEY)
+    return v === 'grid' || v === 'table' || v === 'album' ? v : null
+  } catch {
+    return null
+  }
+}
+
+function storeView(view: View) {
+  try {
+    localStorage.setItem(VIEW_KEY, view)
+  } catch {
+    // Not remembered in private mode; the URL still carries it.
+  }
+  for (const l of viewListeners) l()
+}
+
+/**
+ * The remembered view. The server (and so hydration) knows nothing of it and
+ * says null, then React re-renders with the stored one; a page opened by
+ * navigating in the app reads it straight away, so the grid never flashes.
+ */
+function useStoredView(): View | null {
+  return useSyncExternalStore(
+    (onChange) => {
+      viewListeners.add(onChange)
+      return () => viewListeners.delete(onChange)
+    },
+    readStoredView,
+    () => null,
+  )
+}
 
 const VIEWS = [
   { view: 'grid', label: 'Grid', icon: LayoutGrid },
