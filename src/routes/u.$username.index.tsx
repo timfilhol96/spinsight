@@ -1,8 +1,10 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
-import { Search, X } from 'lucide-react'
+import { LayoutGrid, Rows3, Search, X } from 'lucide-react'
 import { RecordCard } from '#/components/record-card'
 import { RecordSheet } from '#/components/record-sheet'
+import { RecordTable } from '#/components/record-table'
+import type { TableSort } from '#/components/record-table'
 import { VinylDisc } from '#/components/vinyl-disc'
 import { Input } from '#/components/ui/input'
 import type { CollectionRecord } from '#/lib/records'
@@ -24,7 +26,9 @@ export type CollectionSearch = {
   label?: string
   country?: string
   colored?: boolean
-  sort?: 'added' | 'artist' | 'title' | 'year'
+  sort?: TableSort
+  /** Grid when absent. */
+  view?: 'table'
   /** Instance id of the open record card (the now-playing dock links here). */
   open?: number
 }
@@ -50,6 +54,7 @@ export const Route = createFileRoute('/u/$username/')({
       s.sort === 'artist' || s.sort === 'title' || s.sort === 'year'
         ? s.sort
         : undefined,
+    view: s.view === 'table' ? s.view : undefined,
     open: int(s.open),
   }),
   head: ({ params }) => ({
@@ -235,6 +240,12 @@ function CollectionPage() {
             <option value="year">Release year</option>
           </select>
         </label>
+        <ViewSwitch
+          view={search.view ?? 'grid'}
+          onChange={(view) =>
+            setSearch({ view: view === 'grid' ? undefined : view })
+          }
+        />
       </section>
 
       {pills.length > 0 && (
@@ -255,15 +266,28 @@ function CollectionPage() {
         </div>
       )}
 
-      <section className="mt-8 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-5">
-        {visible.map((r) => (
-          <RecordCard
-            key={r.instanceId}
-            record={r}
-            onOpen={() => setSearch({ open: r.instanceId })}
+      {search.view === 'table' ? (
+        visible.length > 0 && (
+          <RecordTable
+            records={visible}
+            sort={search.sort ?? 'added'}
+            onSort={(sort) =>
+              setSearch({ sort: sort === 'added' ? undefined : sort })
+            }
+            onOpen={(r) => setSearch({ open: r.instanceId })}
           />
-        ))}
-      </section>
+        )
+      ) : (
+        <section className="mt-8 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-5">
+          {visible.map((r) => (
+            <RecordCard
+              key={r.instanceId}
+              record={r}
+              onOpen={() => setSearch({ open: r.instanceId })}
+            />
+          ))}
+        </section>
+      )}
       {visible.length === 0 && (
         <p className="mt-10 text-center text-muted-foreground">
           No records match that.
@@ -338,6 +362,44 @@ function ArtistFilter({
           <option key={a} value={a} />
         ))}
       </datalist>
+    </div>
+  )
+}
+
+type View = NonNullable<CollectionSearch['view']> | 'grid'
+
+const VIEWS = [
+  { view: 'grid', label: 'Grid', icon: LayoutGrid },
+  { view: 'table', label: 'Table', icon: Rows3 },
+] as const
+
+function ViewSwitch({
+  view,
+  onChange,
+}: {
+  view: View
+  onChange: (view: View) => void
+}) {
+  return (
+    <div className="flex h-9 rounded-md border bg-card p-0.5" role="group">
+      {VIEWS.map(({ view: v, label, icon: Icon }) => (
+        <button
+          key={v}
+          type="button"
+          onClick={() => onChange(v)}
+          aria-pressed={view === v}
+          aria-label={`${label} view`}
+          title={`${label} view`}
+          className={
+            'grid w-8 place-items-center rounded-[5px] transition ' +
+            (view === v
+              ? 'bg-record-1 text-record-ink'
+              : 'text-muted-foreground hover:text-foreground')
+          }
+        >
+          <Icon className="size-4" />
+        </button>
+      ))}
     </div>
   )
 }
