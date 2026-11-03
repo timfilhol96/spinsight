@@ -17,7 +17,7 @@ import { Progress } from '#/components/ui/progress'
 import { setProfileVisibility } from '#/lib/collection.functions'
 import { profileQuery, usePrefetchTracklists, viewerQuery } from '#/lib/queries'
 import type { Profile } from '#/lib/records'
-import { useCollectionSync } from '#/lib/use-collection-sync'
+import { STALE_SYNC_MS, useCollectionSync } from '#/lib/use-collection-sync'
 import { useProfile } from '#/lib/use-profile'
 
 // Profile shell: header, owner sync controls and tabs. The pages underneath
@@ -90,6 +90,18 @@ function ProfileLayout() {
     })
     void sync.start({ trigger: 'signup' })
   }, [welcome, profile.isOwner, navigate, sync, username])
+
+  // Coming back after a while: catch up with Discogs in the background, on
+  // top of the nightly cron.
+  const caughtUp = useRef(false)
+  useEffect(() => {
+    if (welcome || !profile.isOwner || caughtUp.current) return
+    caughtUp.current = true
+    const age = profile.lastSyncedAt
+      ? Date.now() - new Date(profile.lastSyncedAt).getTime()
+      : Infinity
+    if (age > STALE_SYNC_MS) void sync.start({ trigger: 'visit' })
+  }, [welcome, profile.isOwner, profile.lastSyncedAt, sync])
 
   const unenriched = profile.records.filter((r) => r.needsDetails).length
   const busy = sync.state.phase !== 'idle'
@@ -176,30 +188,35 @@ function ProfileLayout() {
         )}
       </section>
 
-      {sync.state.phase !== 'idle' && (
-        <div className="mt-6 rounded-xl border bg-card/80 p-4">
-          <div className="flex items-center gap-3">
-            <VinylDisc look={null} spinning className="size-8" />
-            <div className="flex-1">
-              <p className="text-sm font-medium">
-                {sync.state.phase === 'syncing'
-                  ? 'Flipping through your crates on Discogs…'
-                  : `Fetching record details — ${sync.state.done} of ${sync.state.total || '…'}`}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Discogs allows about one request a second, so the first full run
-                takes a minute or two.
-              </p>
+      {sync.state.phase !== 'idle' &&
+        // A background catch-up only shows up once there's details to fetch.
+        !(
+          sync.state.quiet &&
+          (sync.state.phase === 'syncing' || !sync.state.total)
+        ) && (
+          <div className="mt-6 rounded-xl border bg-card/80 p-4">
+            <div className="flex items-center gap-3">
+              <VinylDisc look={null} spinning className="size-8" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">
+                  {sync.state.phase === 'syncing'
+                    ? 'Flipping through your crates on Discogs…'
+                    : `Fetching record details — ${sync.state.done} of ${sync.state.total || '…'}`}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Discogs allows about one request a second, so the first full
+                  run takes a minute or two.
+                </p>
+              </div>
             </div>
+            {sync.state.phase === 'enriching' && sync.state.total > 0 && (
+              <Progress
+                value={(sync.state.done / sync.state.total) * 100}
+                className="mt-3"
+              />
+            )}
           </div>
-          {sync.state.phase === 'enriching' && sync.state.total > 0 && (
-            <Progress
-              value={(sync.state.done / sync.state.total) * 100}
-              className="mt-3"
-            />
-          )}
-        </div>
-      )}
+        )}
 
       <nav
         className="-mx-4 mt-8 flex gap-6 overflow-x-auto border-b px-4 whitespace-nowrap [scrollbar-width:none] sm:mx-0 sm:px-0"

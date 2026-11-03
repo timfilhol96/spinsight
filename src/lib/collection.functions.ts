@@ -277,8 +277,10 @@ export const getProfile = createServerFn({ method: 'GET' })
   })
 
 export const runSync = createServerFn({ method: 'POST' })
-  .validator((d: { trigger?: 'manual' | 'signup' }) =>
-    z.object({ trigger: z.enum(['manual', 'signup']).optional() }).parse(d),
+  .validator((d: { trigger?: 'manual' | 'signup' | 'visit' }) =>
+    z
+      .object({ trigger: z.enum(['manual', 'signup', 'visit']).optional() })
+      .parse(d),
   )
   .handler(async ({ data }) => {
     const { requireUser } = await import('#/lib/session.server')

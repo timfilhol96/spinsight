@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Search, X } from 'lucide-react'
 import { RecordCard } from '#/components/record-card'
 import { RecordSheet } from '#/components/record-sheet'
@@ -23,7 +23,7 @@ export type CollectionSearch = {
   label?: string
   country?: string
   colored?: boolean
-  sort?: 'added' | 'artist' | 'year'
+  sort?: 'added' | 'artist' | 'title' | 'year'
   /** Instance id of the open record card (the now-playing dock links here). */
   open?: number
 }
@@ -45,7 +45,10 @@ export const Route = createFileRoute('/u/$username/')({
     label: str(s.label),
     country: str(s.country),
     colored: s.colored === true || s.colored === 'true' ? true : undefined,
-    sort: s.sort === 'artist' || s.sort === 'year' ? s.sort : undefined,
+    sort:
+      s.sort === 'artist' || s.sort === 'title' || s.sort === 'year'
+        ? s.sort
+        : undefined,
     open: int(s.open),
   }),
   head: ({ params }) => ({
@@ -88,20 +91,34 @@ function CollectionPage() {
       resetScroll: !(Object.keys(patch).length === 1 && 'open' in patch),
     })
 
-  const genreCounts = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const r of profile.records)
-      for (const g of r.genres) counts.set(g, (counts.get(g) ?? 0) + 1)
-    return [...counts.entries()].sort((a, b) => b[1] - a[1])
+  const options = useMemo(() => {
+    const genres = new Map<string, number>()
+    const decades = new Map<number, number>()
+    const artists = new Set<string>()
+    for (const r of profile.records) {
+      for (const g of r.genres) genres.set(g, (genres.get(g) ?? 0) + 1)
+      if (r.originalYear) {
+        const d = decadeOf(r.originalYear)
+        decades.set(d, (decades.get(d) ?? 0) + 1)
+      }
+      artists.add(r.artist)
+    }
+    return {
+      genres: [...genres.entries()].sort((a, b) => b[1] - a[1]),
+      decades: [...decades.entries()].sort((a, b) => a[0] - b[0]),
+      artists: [...artists].sort(shelfOrder),
+    }
   }, [profile.records])
 
   const visible = useMemo(() => {
     const list = profile.records.filter((r) => matches(r, search))
-    const byArtist = (a: CollectionRecord, b: CollectionRecord) =>
-      a.artist
-        .replace(/^the\s+/i, '')
-        .localeCompare(b.artist.replace(/^the\s+/i, ''))
-    if (search.sort === 'artist') return [...list].sort(byArtist)
+    if (search.sort === 'artist')
+      return [...list].sort((a, b) => shelfOrder(a.artist, b.artist))
+    if (search.sort === 'title')
+      return [...list].sort(
+        (a, b) =>
+          shelfOrder(a.title, b.title) || shelfOrder(a.artist, b.artist),
+      )
     if (search.sort === 'year')
       return [...list].sort(
         (a, b) =>
@@ -111,16 +128,14 @@ function CollectionPage() {
     return list
   }, [profile.records, search])
 
-  // Filters that came from Insights (not the genre chips) get their own pills.
+  // Filters only Insights links to (no control of their own) get pills.
   const pills = (
     [
       ['style', search.style],
-      ['decade', search.decade !== undefined ? `${search.decade}s` : undefined],
       [
         'pressed',
         search.pressed !== undefined ? `${search.pressed}s` : undefined,
       ],
-      ['artist', search.artist],
       ['label', search.label],
       ['country', search.country],
     ] as const
@@ -145,8 +160,8 @@ function CollectionPage() {
 
   return (
     <>
-      <section className="mt-8 flex flex-col gap-3 md:flex-row md:items-center">
-        <div className="relative md:w-72">
+      <section className="mt-8 flex flex-wrap items-center gap-2">
+        <div className="relative w-full sm:w-64">
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search.q ?? ''}
@@ -156,34 +171,50 @@ function CollectionPage() {
             aria-label="Search records"
           />
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          <Chip
-            active={!search.genre && !search.colored}
-            onClick={() => setSearch({ genre: undefined, colored: undefined })}
-          >
-            All
-          </Chip>
-          <Chip
-            active={!!search.colored}
-            onClick={() =>
-              setSearch({ colored: search.colored ? undefined : true })
-            }
-          >
-            Coloured vinyl
-          </Chip>
-          {genreCounts.map(([g, n]) => (
-            <Chip
-              key={g}
-              active={search.genre === g}
-              onClick={() =>
-                setSearch({ genre: search.genre === g ? undefined : g })
-              }
-            >
-              {g} <span className="opacity-60">{n}</span>
-            </Chip>
+        <select
+          value={search.genre ?? ''}
+          onChange={(e) => setSearch({ genre: e.target.value || undefined })}
+          className={selectClass(!!search.genre)}
+          aria-label="Genre"
+        >
+          <option value="">All genres</option>
+          {options.genres.map(([g, n]) => (
+            <option key={g} value={g}>
+              {g} ({n})
+            </option>
           ))}
-        </div>
-        <label className="flex items-center gap-2 text-sm text-muted-foreground md:ml-auto">
+        </select>
+        <select
+          value={search.decade ?? ''}
+          onChange={(e) =>
+            setSearch({
+              decade: e.target.value ? Number(e.target.value) : undefined,
+            })
+          }
+          className={selectClass(search.decade !== undefined)}
+          aria-label="Decade"
+        >
+          <option value="">All decades</option>
+          {options.decades.map(([d, n]) => (
+            <option key={d} value={d}>
+              {d}s ({n})
+            </option>
+          ))}
+        </select>
+        <ArtistFilter
+          artists={options.artists}
+          value={search.artist}
+          onChange={(artist) => setSearch({ artist })}
+        />
+        <Chip
+          active={!!search.colored}
+          onClick={() =>
+            setSearch({ colored: search.colored ? undefined : true })
+          }
+        >
+          Coloured vinyl
+        </Chip>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground lg:ml-auto">
           Sort
           <select
             value={search.sort ?? 'added'}
@@ -195,10 +226,11 @@ function CollectionPage() {
                     : (e.target.value as CollectionSearch['sort']),
               })
             }
-            className="rounded-md border bg-card px-2 py-1.5 text-foreground"
+            className={selectClass(false)}
           >
             <option value="added">Recently added</option>
             <option value="artist">Artist A–Z</option>
+            <option value="title">Title A–Z</option>
             <option value="year">Release year</option>
           </select>
         </label>
@@ -245,6 +277,81 @@ function CollectionPage() {
   )
 }
 
+const collator = new Intl.Collator(undefined, { numeric: true })
+
+/**
+ * Shelf order, like in a record shop: "The Beatles" and "(The) Melvins" sort
+ * under B and M, "...And The Machines" under A.
+ */
+const shelfOrder = (a: string, b: string) =>
+  collator.compare(shelfKey(a), shelfKey(b))
+const shelfKey = (s: string) =>
+  s.replace(/^[^\p{L}\p{N}]+/u, '').replace(/^the\b[^\p{L}\p{N}]*/iu, '')
+
+const selectClass = (active: boolean) =>
+  'h-9 rounded-md border bg-card px-2 text-sm ' +
+  (active ? 'border-record-1 text-foreground' : 'text-muted-foreground')
+
+/**
+ * Type-ahead over the artists in the collection. The filter only applies once
+ * the text names one of them; free text stays the search box's job.
+ */
+function ArtistFilter({
+  artists,
+  value,
+  onChange,
+}: {
+  artists: string[]
+  value: string | undefined
+  onChange: (artist: string | undefined) => void
+}) {
+  const [text, setText] = useState(value ?? '')
+  const find = (t: string) =>
+    artists.find((a) => a.toLowerCase() === t.trim().toLowerCase())
+
+  // Follow the URL when the filter is set or cleared from elsewhere (an
+  // Insights link, the back button), without wiping half-typed text.
+  useEffect(() => {
+    if (value !== undefined) setText(value)
+    else setText((t) => (find(t) ? '' : t))
+  }, [value])
+
+  return (
+    <div className="relative">
+      <Input
+        list="collection-artists"
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value)
+          const match = find(e.target.value)
+          if (match !== value) onChange(match)
+        }}
+        placeholder="Any artist"
+        aria-label="Artist"
+        className={'h-9 w-44 bg-card pr-8 ' + (value ? 'border-record-1' : '')}
+      />
+      {text && (
+        <button
+          type="button"
+          onClick={() => {
+            setText('')
+            if (value) onChange(undefined)
+          }}
+          className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          aria-label="Clear artist"
+        >
+          <X className="size-4" />
+        </button>
+      )}
+      <datalist id="collection-artists">
+        {artists.map((a) => (
+          <option key={a} value={a} />
+        ))}
+      </datalist>
+    </div>
+  )
+}
+
 function Chip({
   active,
   onClick,
@@ -260,7 +367,7 @@ function Chip({
       onClick={onClick}
       aria-pressed={active}
       className={
-        'rounded-full border px-3 py-1 text-xs font-medium transition ' +
+        'h-9 rounded-full border px-3 text-xs font-medium transition ' +
         (active
           ? 'border-record-1 bg-record-1 text-record-ink'
           : 'bg-card hover:border-record-1')

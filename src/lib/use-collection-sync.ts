@@ -6,8 +6,12 @@ import { profileQuery } from '#/lib/queries'
 
 export type SyncState =
   | { phase: 'idle' }
-  | { phase: 'syncing' }
-  | { phase: 'enriching'; done: number; total: number }
+  /** `quiet`: started on its own when the owner came back (no panel). */
+  | { phase: 'syncing'; quiet?: boolean }
+  | { phase: 'enriching'; done: number; total: number; quiet?: boolean }
+
+/** The owner's collection refreshes on a visit once its sync is this old. */
+export const STALE_SYNC_MS = 6 * 3_600_000
 
 /**
  * Sync = pull the collection list (seconds). Enrich = fetch details per record
@@ -24,29 +28,37 @@ export function useCollectionSync(username: string) {
     [qc, username],
   )
 
-  const enrich = useCallback(async () => {
-    let done = 0
-    setState({ phase: 'enriching', done: 0, total: 0 })
-    for (;;) {
-      const r = await runEnrich()
-      done += r.processed
-      setState({ phase: 'enriching', done, total: done + r.remaining })
-      await refresh()
-      // processed === 0 with work remaining means we're stuck; stop rather than spin.
-      if (r.remaining === 0 || r.processed === 0) break
-    }
-    return done
-  }, [refresh])
+  const enrich = useCallback(
+    async (quiet?: boolean) => {
+      let done = 0
+      setState({ phase: 'enriching', done: 0, total: 0, quiet })
+      for (;;) {
+        const r = await runEnrich()
+        done += r.processed
+        setState({ phase: 'enriching', done, total: done + r.remaining, quiet })
+        await refresh()
+        // processed === 0 with work remaining means we're stuck; stop rather than spin.
+        if (r.remaining === 0 || r.processed === 0) break
+      }
+      return done
+    },
+    [refresh],
+  )
 
   const start = useCallback(
     async (
-      opts: { trigger?: 'manual' | 'signup'; skipSync?: boolean } = {},
+      opts: {
+        trigger?: 'manual' | 'signup' | 'visit'
+        skipSync?: boolean
+      } = {},
     ) => {
       if (running.current) return
       running.current = true
+      // A sync on visit only speaks up when something changed.
+      const quiet = opts.trigger === 'visit'
       try {
         if (!opts.skipSync) {
-          setState({ phase: 'syncing' })
+          setState({ phase: 'syncing', quiet })
           const r = await runSync({
             data: { trigger: opts.trigger ?? 'manual' },
           })
@@ -55,16 +67,17 @@ export function useCollectionSync(username: string) {
             r.added && `${r.added} new`,
             r.removed && `${r.removed} removed`,
           ].filter(Boolean)
-          toast.success(
-            `Synced ${r.total} records${changes.length ? ` (${changes.join(', ')})` : ''}.`,
-          )
+          if (!quiet || changes.length)
+            toast.success(
+              `Synced ${r.total} records${changes.length ? ` (${changes.join(', ')})` : ''}.`,
+            )
         }
-        const enriched = await enrich()
+        const enriched = await enrich(quiet)
         if (enriched && opts.skipSync)
           toast.success(`Fetched details for ${enriched} records.`)
       } catch (e) {
         console.error(e)
-        toast.error(`Sync failed: ${(e as Error).message}`)
+        if (!quiet) toast.error(`Sync failed: ${(e as Error).message}`)
       } finally {
         running.current = false
         setState({ phase: 'idle' })

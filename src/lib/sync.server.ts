@@ -39,7 +39,7 @@ export type SyncResult = { total: number; added: number; removed: number }
  */
 export async function syncCollection(
   user: UserRow,
-  trigger: 'manual' | 'cron' | 'signup' = 'manual',
+  trigger: 'manual' | 'cron' | 'signup' | 'visit' = 'manual',
 ): Promise<SyncResult> {
   const supabase = db()
   const { data: run } = await supabase
