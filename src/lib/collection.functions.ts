@@ -486,11 +486,27 @@ export const deletePlay = createServerFn({ method: 'POST' })
 
 // ---------- cover choice ----------
 
+/** The copy's owner, or an error if it isn't the signed-in user's. */
+async function requireOwnCopy(instanceId: number) {
+  const { requireUser } = await import('#/lib/session.server')
+  const { db } = await import('#/lib/supabase.server')
+  const user = await requireUser()
+  const { data: item } = await db()
+    .from('collection_items')
+    .select('instance_id')
+    .eq('instance_id', instanceId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+  if (!item) throw new Error('That record is not in your collection.')
+  return user
+}
+
 /** Everything a copy's cover can be set to. Owner only. */
 async function coverOptionsFor(instanceId: number): Promise<CoverOption[]> {
   const { requireUser } = await import('#/lib/session.server')
   const { db } = await import('#/lib/supabase.server')
   const { discogsGet } = await import('#/lib/discogs.server')
+  const { storedImagesFor } = await import('#/lib/link-image.server')
   const user = await requireUser()
   const { data: item } = await db()
     .from('collection_items')
@@ -526,16 +542,28 @@ async function coverOptionsFor(instanceId: number): Promise<CoverOption[]> {
       thumb: rel.artwork_thumb,
       label: `Edition cover (${service(rel.artwork_source)})`,
     })
-  const full = await discogsGet<DiscogsRelease>(`/releases/${rel.id}`, {
-    token: user.oauth_token,
-    secret: user.oauth_token_secret,
-  })
+  const [full, stored] = await Promise.all([
+    discogsGet<DiscogsRelease>(`/releases/${rel.id}`, {
+      token: user.oauth_token,
+      secret: user.oauth_token_secret,
+    }),
+    storedImagesFor(user.id, instanceId),
+  ])
+  // Images added from a link come first: they were picked on purpose.
+  stored.forEach((img, i) =>
+    options.push({
+      url: img.url,
+      thumb: img.thumb,
+      label: stored.length > 1 ? `From a link ${i + 1}` : 'From a link',
+      photo: { width: img.width, height: img.height },
+    }),
+  )
   ;(full.images ?? []).slice(0, 12).forEach((img, i) =>
     options.push({
       url: img.uri,
       thumb: img.uri150 || img.uri,
       label: `Discogs image ${i + 1}`,
-      discogs: { width: img.width ?? 0, height: img.height ?? 0 },
+      photo: { width: img.width ?? 0, height: img.height ?? 0 },
     }),
   )
   return options
@@ -568,6 +596,60 @@ export const setCover = createServerFn({ method: 'POST' })
       .eq('instance_id', data.instanceId)
     if (error) throw new Error(error.message)
     return { ok: true }
+  })
+
+/**
+ * The images behind a link the owner pasted (a shop's product page, or an
+ * image), to choose a cover or disc photo from. Owner only, so the server
+ * only fetches links on behalf of signed-in collectors.
+ */
+export const findLinkImages = createServerFn({ method: 'POST' })
+  .validator((d: { instanceId: number; link: string }) =>
+    z
+      .object({
+        instanceId: z.number().int().positive(),
+        link: z.string().trim().min(1).max(2000),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }): Promise<{ images: string[] }> => {
+    await requireOwnCopy(data.instanceId)
+    const { findLinkImages: find } = await import('#/lib/link-image.server')
+    const link = /^[a-z][a-z0-9+.-]*:/i.test(data.link)
+      ? data.link
+      : `https://${data.link}`
+    return { images: await find(link) }
+  })
+
+/**
+ * Copies an image from a link into Spinsight's storage for this copy. As a
+ * cover it's used straight away; as a disc photo it's returned so the owner
+ * can place the circle on it (saved with `setDiscPhoto`).
+ */
+export const addLinkImage = createServerFn({ method: 'POST' })
+  .validator((d: { instanceId: number; url: string; use: 'cover' | 'disc' }) =>
+    z
+      .object({
+        instanceId: z.number().int().positive(),
+        url: z.string().url().max(2000),
+        use: z.enum(['cover', 'disc']),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const user = await requireOwnCopy(data.instanceId)
+    const { db } = await import('#/lib/supabase.server')
+    const { storeLinkImage } = await import('#/lib/link-image.server')
+    const image = await storeLinkImage(data.url, user.id, data.instanceId)
+    if (data.use === 'cover') {
+      const { error } = await db()
+        .from('collection_items')
+        .update({ cover_url: image.url, cover_thumb: image.thumb })
+        .eq('instance_id', data.instanceId)
+        .eq('user_id', user.id)
+      if (error) throw new Error(error.message)
+    }
+    return image
   })
 
 // ---------- tracklist ----------
@@ -655,7 +737,8 @@ export const stopPlay = createServerFn({ method: 'POST' })
 // ---------- disc photo ----------
 
 /**
- * Uses one of the release's Discogs photos as this copy's disc, cropped to the
+ * Uses one of the release's Discogs photos (or an image added from a link)
+ * as this copy's disc, cropped to the
  * circle the owner drew, and samples its colours for the app tint. `url: null`
  * goes back to the drawn disc.
  */
@@ -681,7 +764,7 @@ export const setDiscPhoto = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const { db } = await import('#/lib/supabase.server')
     const { sampleDiscColors } = await import('#/lib/disc-photo.server')
-    // Also checks ownership, and that the photo belongs to this release.
+    // Also checks ownership, and that the photo belongs to this copy.
     const options = await coverOptionsFor(data.instanceId)
     if (data.url === null) {
       const { error } = await db()
@@ -691,7 +774,7 @@ export const setDiscPhoto = createServerFn({ method: 'POST' })
       if (error) throw new Error(error.message)
       return { colors: [] as string[] }
     }
-    const option = options.find((o) => o.discogs && o.url === data.url)
+    const option = options.find((o) => o.photo && o.url === data.url)
     if (!option || data.cx == null || data.cy == null || data.r == null)
       throw new Error('That photo is not available for this record.')
     const crop = { cx: data.cx, cy: data.cy, r: data.r }

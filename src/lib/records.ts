@@ -152,8 +152,11 @@ export type CoverOption = {
   url: string | null
   thumb: string | null
   label: string
-  /** Set for Discogs images: these can also be used as a disc photo. */
-  discogs?: { width: number; height: number }
+  /**
+   * Set for photos (Discogs images, images added from a link): these can
+   * also be used as a disc photo.
+   */
+  photo?: { width: number; height: number }
 }
 
 export type NowPlaying = {

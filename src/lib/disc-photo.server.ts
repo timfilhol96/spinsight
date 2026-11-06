@@ -1,4 +1,6 @@
 import sharp from 'sharp'
+import { env } from '#/lib/env.server'
+import { COVER_BUCKET } from '#/lib/link-image.server'
 
 // Samples the vinyl's colours from a photo, inside the circle the owner drew.
 // Done on the server because Discogs images don't allow cross-origin pixel
@@ -112,12 +114,20 @@ function dominantColors(
 /** Hosts album artwork comes from; nothing else gets fetched. */
 const ARTWORK_HOSTS = /(^|\.)(scdn\.co|mzstatic\.com|discogs\.com)$/
 
+/** Covers added from a link live in our own Supabase Storage. */
+const isStoredCover = (url: URL) =>
+  url.origin === new URL(env.supabaseUrl).origin &&
+  url.pathname.startsWith(`/storage/v1/object/public/${COVER_BUCKET}/`)
+
 /** The album artwork's dominant colours, for theming stand mode. */
 export async function sampleArtworkColors(
   imageUrl: string,
 ): Promise<Array<{ hex: string; share: number }>> {
   const url = new URL(imageUrl)
-  if (url.protocol !== 'https:' || !ARTWORK_HOSTS.test(url.hostname))
+  if (
+    url.protocol !== 'https:' ||
+    !(ARTWORK_HOSTS.test(url.hostname) || isStoredCover(url))
+  )
     throw new Error('Not an artwork URL.')
   const res = await fetch(url, { headers: { 'User-Agent': 'Spinsight/0.1' } })
   if (!res.ok) throw new Error(`Couldn't fetch the artwork (${res.status}).`)

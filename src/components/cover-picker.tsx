@@ -2,14 +2,20 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Check, ImageIcon } from 'lucide-react'
 import { toast } from 'sonner'
-import { getCoverOptions, setCover } from '#/lib/collection.functions'
+import { LinkImages } from '#/components/link-images'
+import {
+  addLinkImage,
+  getCoverOptions,
+  setCover,
+} from '#/lib/collection.functions'
 import type { CollectionRecord } from '#/lib/records'
 import { cn } from '#/lib/utils'
 
 /**
  * Lets the owner override a copy's cover: the regular album art, an edition
- * cover, or any image on the Discogs release. For the cases the automatic
- * choice gets wrong (special editions, photos of the disc).
+ * cover, any image on the Discogs release, or an image from a link (a shop's
+ * product page). For the cases the automatic choice gets wrong (special
+ * editions, photos of the disc, releases with poor Discogs images).
  */
 export function CoverPicker({ record }: { record: CollectionRecord }) {
   const [open, setOpen] = useState(false)
@@ -37,6 +43,17 @@ export function CoverPicker({ record }: { record: CollectionRecord }) {
     } finally {
       setSaving(null)
     }
+  }
+
+  async function chooseFromLink(url: string) {
+    await addLinkImage({
+      data: { instanceId: record.instanceId, url, use: 'cover' },
+    })
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ['profile'] }),
+      qc.invalidateQueries({ queryKey: ['cover-options', record.instanceId] }),
+    ])
+    toast.success('Cover saved.')
   }
 
   return (
@@ -100,6 +117,11 @@ export function CoverPicker({ record }: { record: CollectionRecord }) {
               ))}
             </ul>
           )}
+          <LinkImages
+            instanceId={record.instanceId}
+            purpose="cover"
+            onPick={chooseFromLink}
+          />
         </div>
       )}
     </div>

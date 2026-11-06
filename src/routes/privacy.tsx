@@ -43,9 +43,9 @@ function PrivacyPage() {
         <strong>Things you do in Spinsight:</strong> records you mark as playing
         and when, plus the picker answers that led to a pick (mood, a weather
         category like "rainy", how much time you had); covers and disc photos
-        you choose; prices you enter for what you paid; your currency and
-        visibility settings; who you follow; and emoji you put on friends'
-        spins.
+        you choose, including copies of images from links you paste; prices you
+        enter for what you paid; your currency and visibility settings; who you
+        follow; and emoji you put on friends' spins.
       </p>
       <p>
         <strong>Release details</strong> such as titles, tracklists, artwork,
@@ -123,6 +123,12 @@ function PrivacyPage() {
           artist genres. <strong>Wikipedia</strong> is searched the same way for
           liner notes. <strong>Frankfurter</strong> provides exchange rates.
           None of these receive anything about you.
+        </li>
+        <li>
+          <strong>Links you paste</strong> for a cover or disc photo are fetched
+          by Spinsight's server, not your browser, so the site only sees our
+          server. While you choose, the images found are shown straight from
+          that site, which then sees your IP address like any page would.
         </li>
         <li>
           <strong>Google Fonts</strong> serves the typefaces, so your browser

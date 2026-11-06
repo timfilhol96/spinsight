@@ -199,3 +199,8 @@ alter table public.play_reactions enable row level security;
 alter table public.want_items enable row level security;
 alter table public.record_facts_cache enable row level security;
 alter table public.liner_notes_cache enable row level security;
+
+-- Covers and disc photos added from a link (see migration 014).
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('covers', 'covers', true, 5242880, array['image/jpeg'])
+on conflict (id) do nothing;

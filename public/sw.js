@@ -78,7 +78,10 @@ self.addEventListener('fetch', (event) => {
   if (
     COVER_HOSTS.some(
       (h) => url.hostname === h || url.hostname.endsWith(`.${h}`),
-    )
+    ) ||
+    // Covers and disc photos added from a link, in Supabase Storage.
+    (url.hostname.endsWith('.supabase.co') &&
+      url.pathname.startsWith('/storage/v1/object/public/covers/'))
   ) {
     event.respondWith(
       caches.open(COVERS).then(async (cache) => {

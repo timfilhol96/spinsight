@@ -54,7 +54,8 @@ export const exportMyData = createServerFn({ method: 'GET' }).handler(
 
 /**
  * Deletes the account and everything tied to it (collection, plays,
- * wantlist, follows, reactions: all cascade from `users`), then signs out.
+ * wantlist, follows, reactions: all cascade from `users`; images added from
+ * links are removed from storage), then signs out.
  * Shared release data stays, as it isn't anyone's personal data.
  */
 export const deleteMyAccount = createServerFn({ method: 'POST' })
@@ -67,6 +68,10 @@ export const deleteMyAccount = createServerFn({ method: 'POST' })
     const user = await requireUser()
     if (data.confirm.toLowerCase() !== user.discogs_username.toLowerCase())
       throw new Error('Type your Discogs username to confirm.')
+    const { deleteStoredImages } = await import('#/lib/link-image.server')
+    // Covers and disc photos added from links live in storage, not the
+    // database, so they don't cascade.
+    await deleteStoredImages(user.id)
     const { error } = await db().from('users').delete().eq('id', user.id)
     if (error) throw new Error(error.message)
     const session = await appSession()

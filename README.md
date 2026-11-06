@@ -41,7 +41,12 @@ TanStack Query · Supabase (Postgres) · Vercel.
   last resort, since Discogs' primary image is sometimes a photo of the disc.
   Special editions (anniversary, deluxe…, see `src/lib/editions.ts`) only take
   a streaming cover of the same edition, else their own Discogs image. The
-  owner can override any cover from the record panel.
+  owner can override any cover from the record panel, including with an image
+  from a link (`src/lib/link-image.server.ts`): a shop's product page is read
+  for its JSON-LD / Open Graph images, and the chosen one is re-encoded and
+  stored in the `covers` Supabase Storage bucket (migration 014). The same
+  works for disc photos. Links are only fetched over https from public
+  addresses.
 - **Installable app:** `public/manifest.webmanifest` + `public/sw.js`
   (caches build assets and covers, offline page; never caches data or auth).
   Icons are rendered from `public/logo.svg` with `npm run icons`.

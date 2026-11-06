@@ -4,7 +4,12 @@ import { Camera } from 'lucide-react'
 import { toast } from 'sonner'
 import { VinylDisc } from '#/components/vinyl-disc'
 import { Button } from '#/components/ui/button'
-import { getCoverOptions, setDiscPhoto } from '#/lib/collection.functions'
+import { LinkImages } from '#/components/link-images'
+import {
+  addLinkImage,
+  getCoverOptions,
+  setDiscPhoto,
+} from '#/lib/collection.functions'
 import type { CollectionRecord, CoverOption } from '#/lib/records'
 import type { DiscPhoto } from '#/lib/vinyl-color'
 import { cn } from '#/lib/utils'
@@ -12,8 +17,9 @@ import { cn } from '#/lib/utils'
 type Draft = DiscPhoto
 
 /**
- * Lets the owner use a real Discogs photo as the disc: choose the photo that
- * shows the vinyl, then drag/resize a circle over it. The server samples the
+ * Lets the owner use a real photo as the disc (from Discogs, or from a link
+ * such as a shop's product page): choose the photo that shows the vinyl,
+ * then drag/resize a circle over it. The server samples the
  * colours inside the circle for the app tint.
  */
 export function DiscPhotoEditor({ record }: { record: CollectionRecord }) {
@@ -27,11 +33,11 @@ export function DiscPhotoEditor({ record }: { record: CollectionRecord }) {
     enabled: open,
     staleTime: 10 * 60_000,
   })
-  const photos = (options.data ?? []).filter((o) => o.discogs)
+  const photos = (options.data ?? []).filter((o) => o.photo)
   const current = record.look.photo
 
   function start(o: CoverOption) {
-    if (!o.url || !o.discogs) return
+    if (!o.url || !o.photo) return
     // Re-editing the same photo keeps the saved circle.
     setDraft(
       current?.url === o.url
@@ -41,10 +47,27 @@ export function DiscPhotoEditor({ record }: { record: CollectionRecord }) {
             cx: 0.5,
             cy: 0.5,
             r: 0.42,
-            w: o.discogs.width,
-            h: o.discogs.height,
+            w: o.photo.width,
+            h: o.photo.height,
           },
     )
+  }
+
+  async function useLinkImage(url: string) {
+    const image = await addLinkImage({
+      data: { instanceId: record.instanceId, url, use: 'disc' },
+    })
+    void qc.invalidateQueries({
+      queryKey: ['cover-options', record.instanceId],
+    })
+    setDraft({
+      url: image.url,
+      cx: 0.5,
+      cy: 0.5,
+      r: 0.42,
+      w: image.width,
+      h: image.height,
+    })
   }
 
   async function save(photo: Draft | null) {
@@ -97,7 +120,7 @@ export function DiscPhotoEditor({ record }: { record: CollectionRecord }) {
       {open && !draft && (
         <div className="mt-3">
           <p className="mb-2 text-xs text-muted-foreground">
-            Pick the Discogs photo that shows the vinyl best.
+            Pick the photo that shows the vinyl best.
           </p>
           {options.isPending && (
             <p className="text-xs text-muted-foreground">Loading photos…</p>
@@ -107,7 +130,7 @@ export function DiscPhotoEditor({ record }: { record: CollectionRecord }) {
           )}
           {options.data && photos.length === 0 && (
             <p className="text-xs text-muted-foreground">
-              This release has no photos on Discogs.
+              This release has no photos on Discogs yet.
             </p>
           )}
           <ul className="grid grid-cols-4 gap-2">
@@ -145,6 +168,11 @@ export function DiscPhotoEditor({ record }: { record: CollectionRecord }) {
               Remove photo, use the drawn disc
             </Button>
           )}
+          <LinkImages
+            instanceId={record.instanceId}
+            purpose="disc"
+            onPick={useLinkImage}
+          />
         </div>
       )}
 
