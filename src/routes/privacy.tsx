@@ -44,8 +44,15 @@ function PrivacyPage() {
         and when, plus the picker answers that led to a pick (mood, a weather
         category like "rainy", how much time you had); covers and disc photos
         you choose, including copies of images from links you paste; prices you
-        enter for what you paid; your currency and visibility settings; who you
-        follow; and emoji you put on friends' spins.
+        enter for what you paid, purchase dates and notes on your records; your
+        currency and visibility settings; who you follow; and emoji you put on
+        friends' spins.
+      </p>
+      <p>
+        Prices paid and notes are only ever shown to you. A purchase date takes
+        the place of the date a record was added to Discogs, which feeds charts
+        such as how your collection grew, so on a public profile those charts
+        reflect it.
       </p>
       <p>
         <strong>Release details</strong> such as titles, tracklists, artwork,

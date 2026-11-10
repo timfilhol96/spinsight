@@ -28,6 +28,8 @@ export type CollectionSearch = {
   label?: string
   country?: string
   colored?: boolean
+  /** Owner only: copies with / without a price paid entered. */
+  paid?: 'yes' | 'no'
   sort?: TableSort
   /** Grid when absent. Album: one card per album, however many pressings. */
   view?: 'table' | 'album'
@@ -46,6 +48,7 @@ const FILTER_KEYS = [
   'label',
   'country',
   'colored',
+  'paid',
 ] as const satisfies ReadonlyArray<keyof CollectionSearch>
 
 const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v : undefined)
@@ -65,6 +68,7 @@ export const Route = createFileRoute('/u/$username/')({
     label: str(s.label),
     country: str(s.country),
     colored: s.colored === true || s.colored === 'true' ? true : undefined,
+    paid: s.paid === 'yes' || s.paid === 'no' ? s.paid : undefined,
     sort:
       s.sort === 'artist' || s.sort === 'title' || s.sort === 'year'
         ? s.sort
@@ -90,11 +94,16 @@ function matches(r: CollectionRecord, f: CollectionSearch): boolean {
     (!f.label || primaryLabel(r) === f.label) &&
     (!f.country || r.country === f.country) &&
     (!f.colored || isColoredVinyl(r.look)) &&
+    // Prices are only sent to the owner, so for anyone else this matches
+    // nothing or everything; the control is only shown to the owner.
+    (!f.paid || (f.paid === 'yes') === !!r.pricePaid) &&
     (!q ||
       r.title.toLowerCase().includes(q) ||
       r.artist.toLowerCase().includes(q) ||
       r.labels.some((l) => l.name.toLowerCase().includes(q)) ||
-      r.styles.some((s) => s.toLowerCase().includes(q)))
+      r.styles.some((s) => s.toLowerCase().includes(q)) ||
+      // Notes are only sent to the owner.
+      !!r.notes?.toLowerCase().includes(q))
   )
 }
 
@@ -113,6 +122,8 @@ function CollectionPage() {
       // filter or sort changes the list, so it starts from the top.
       resetScroll: !(Object.keys(patch).length === 1 && 'open' in patch),
     })
+
+  const paidCount = profile.records.filter((r) => r.pricePaid).length
 
   const options = useMemo(() => {
     const genres = new Map<string, number>()
@@ -213,7 +224,11 @@ function CollectionPage() {
           <Input
             value={search.q ?? ''}
             onChange={(e) => setSearch({ q: e.target.value || undefined })}
-            placeholder="Search title, artist, label, style"
+            placeholder={
+              profile.isOwner
+                ? 'Search title, artist, label, style, notes'
+                : 'Search title, artist, label, style'
+            }
             className="bg-card pl-9"
             aria-label="Search records"
           />
@@ -261,6 +276,24 @@ function CollectionPage() {
         >
           Coloured vinyl
         </Chip>
+        {profile.isOwner && (
+          <select
+            value={search.paid ?? ''}
+            onChange={(e) =>
+              setSearch({
+                paid: (e.target.value || undefined) as CollectionSearch['paid'],
+              })
+            }
+            className={selectClass(!!search.paid)}
+            aria-label="Price paid"
+          >
+            <option value="">Any price paid</option>
+            <option value="yes">Price entered ({paidCount})</option>
+            <option value="no">
+              No price yet ({profile.records.length - paidCount})
+            </option>
+          </select>
+        )}
         <label className="flex items-center gap-2 text-sm text-muted-foreground lg:ml-auto">
           Sort
           <select

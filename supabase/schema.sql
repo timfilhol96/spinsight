@@ -19,6 +19,7 @@ create table if not exists public.users (
   oauth_token_secret text not null,
   is_public boolean not null default true,
   preferred_currency text,                -- ISO code for displaying values/prices
+  secondary_currency text,                -- shown small beside amounts
   share_listening boolean not null default true, -- friends see what you're spinning
   collection_value jsonb,
   last_synced_at timestamptz,
@@ -90,6 +91,8 @@ create table if not exists public.collection_items (
   disc_colors text[],                     -- colours sampled from that circle
   price_paid numeric(10, 2) check (price_paid >= 0), -- typed in by the owner, owner-only
   price_paid_currency text,
+  purchased_on date,                      -- when the owner bought it; stands in for date_added
+  notes text check (char_length(notes) <= 2000), -- the owner's own notes, owner-only
   created_at timestamptz not null default now()
 );
 create index if not exists collection_items_user_idx on public.collection_items (user_id);

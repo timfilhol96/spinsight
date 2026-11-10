@@ -18,6 +18,7 @@ export const demoViewer: Viewer = {
   displayName: 'Sam',
   avatarUrl: null,
   preferredCurrency: null,
+  secondaryCurrency: null,
 }
 
 export function demoProfile(): Profile {
@@ -67,6 +68,9 @@ export function demoProfile(): Profile {
       artworkSource: 'itunes',
       isSpecialEdition: false,
       dateAdded: a.dateAdded,
+      discogsAddedAt: a.dateAdded,
+      purchasedOn: null,
+      notes: null,
       rating: null,
       country: null,
       communityHave: 4000 + ((i * 937) % 30000),
@@ -97,6 +101,7 @@ export function demoProfile(): Profile {
     // Kept out of screenshots on purpose.
     collectionValue: null,
     currency: null,
+    secondaryCurrency: null,
     rates: null,
     nowPlaying: null,
     plays,

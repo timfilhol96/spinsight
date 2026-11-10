@@ -394,6 +394,16 @@ export async function storedImagesFor(
   return out
 }
 
+/** Removes one stored image and its thumbnail. */
+export async function deleteStoredImage(image: StoredImage): Promise<void> {
+  const base = publicUrl('')
+  const paths = [image.url, image.thumb]
+    .filter((u) => u.startsWith(base))
+    .map((u) => u.slice(base.length))
+  const { error } = await db().storage.from(COVER_BUCKET).remove(paths)
+  if (error) throw new Error(`Couldn't delete the image: ${error.message}`)
+}
+
 /** Removes every stored image of a user (account deletion). */
 export async function deleteStoredImages(userId: string): Promise<void> {
   const bucket = db().storage.from(COVER_BUCKET)

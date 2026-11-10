@@ -4,6 +4,7 @@ import { Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
+import { SecondMoney } from '#/components/second-money'
 import { setPricePaid } from '#/lib/collection.functions'
 import { CURRENCIES, formatMoney } from '#/lib/currency'
 import type { Money } from '#/lib/currency'
@@ -17,7 +18,7 @@ import { useMoney, useProfile } from '#/lib/use-profile'
 export function PricePaid({ record }: { record: CollectionRecord }) {
   const qc = useQueryClient()
   const money = useMoney()
-  const { currency: displayCurrency } = useProfile()
+  const { currency: displayCurrency, secondaryCurrency } = useProfile()
   const paid = record.pricePaid
   const [editing, setEditing] = useState(false)
   const [amount, setAmount] = useState('')
@@ -117,6 +118,8 @@ export function PricePaid({ record }: { record: CollectionRecord }) {
           {converted && converted !== formatMoney(paid) && (
             <span className="text-muted-foreground"> · about {converted}</span>
           )}
+          {/* Not when it was paid in the second currency: that's shown. */}
+          {paid.currency !== secondaryCurrency && <SecondMoney value={paid} />}
         </span>
       ) : (
         <span className="text-muted-foreground">What did you pay?</span>

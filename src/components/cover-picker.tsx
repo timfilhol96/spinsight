@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Check, ImageIcon } from 'lucide-react'
 import { toast } from 'sonner'
-import { LinkImages } from '#/components/link-images'
+import { LinkImages, RemoveLinkImage } from '#/components/link-images'
 import {
   addLinkImage,
   getCoverOptions,
@@ -78,7 +78,7 @@ export function CoverPicker({ record }: { record: CollectionRecord }) {
           {options.data && (
             <ul className="grid grid-cols-4 gap-2">
               {options.data.map((o) => (
-                <li key={o.url ?? 'auto'}>
+                <li key={o.url ?? 'auto'} className="relative">
                   <button
                     type="button"
                     onClick={() => choose(o.url)}
@@ -110,6 +110,11 @@ export function CoverPicker({ record }: { record: CollectionRecord }) {
                       </span>
                     )}
                   </button>
+                  <RemoveLinkImage
+                    instanceId={record.instanceId}
+                    option={o}
+                    inUse={isCurrent(o.url) || record.look.photo?.url === o.url}
+                  />
                   <p className="mt-1 truncate text-[10px] text-muted-foreground">
                     {o.label}
                   </p>

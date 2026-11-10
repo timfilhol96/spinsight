@@ -43,6 +43,9 @@ function median(nums: number[]): number | null {
 
 const added = (r: CollectionRecord) =>
   r.dateAdded ? new Date(r.dateAdded) : null
+/** Oldest first. Dates mix Discogs timestamps and typed-in purchase days. */
+const byAdded = (a: CollectionRecord, b: CollectionRecord) =>
+  (added(a)?.getTime() ?? 0) - (added(b)?.getTime() ?? 0)
 const monthKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 export const decadeOf = (year: number) => Math.floor(year / 10) * 10
@@ -327,7 +330,7 @@ export function onThisDay(records: CollectionRecord[], today = new Date()) {
         d.getFullYear() < today.getFullYear()
       )
     })
-    .sort((a, b) => (a.dateAdded ?? '').localeCompare(b.dateAdded ?? ''))
+    .sort(byAdded)
 }
 
 // ---------- badges ----------
@@ -444,7 +447,7 @@ export function yearsWithAdditions(records: CollectionRecord[]): number[] {
 export function yearInVinyl(records: CollectionRecord[], year: number) {
   const inYear = records
     .filter((r) => added(r)?.getFullYear() === year)
-    .sort((a, b) => (a.dateAdded ?? '').localeCompare(b.dateAdded ?? ''))
+    .sort(byAdded)
   const byMonth = new Array(12).fill(0)
   for (const r of inYear) byMonth[added(r)!.getMonth()]++
   const peak = byMonth.indexOf(Math.max(...byMonth))
@@ -491,7 +494,7 @@ export function listening(
   const neverPlayed = records
     .filter((r) => r.playCount === 0)
     // Longest-owned first: the true dust collectors.
-    .sort((a, b) => (a.dateAdded ?? '').localeCompare(b.dateAdded ?? ''))
+    .sort(byAdded)
   return {
     total: plays.length,
     playedShare: records.length ? played.length / records.length : 0,

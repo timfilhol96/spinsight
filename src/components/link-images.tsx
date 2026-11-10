@@ -1,8 +1,69 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Link2 } from 'lucide-react'
+import { Link2, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '#/components/ui/button'
-import { findLinkImages } from '#/lib/collection.functions'
+import { findLinkImages, removeLinkImage } from '#/lib/collection.functions'
+import type { CoverOption } from '#/lib/records'
 import { cn } from '#/lib/utils'
+
+/**
+ * The × on an image added from a link. Deleting the cover or disc photo in
+ * use puts the automatic cover / drawn disc back, so it asks first.
+ */
+export function RemoveLinkImage({
+  instanceId,
+  option,
+  inUse,
+}: {
+  instanceId: number
+  option: CoverOption
+  inUse: boolean
+}) {
+  const qc = useQueryClient()
+  const [busy, setBusy] = useState(false)
+  if (!option.stored || !option.url) return null
+  const url = option.url
+
+  async function remove() {
+    if (
+      inUse &&
+      !window.confirm(
+        'This image is in use. Delete it and go back to the automatic one?',
+      )
+    )
+      return
+    setBusy(true)
+    try {
+      await removeLinkImage({ data: { instanceId, url } })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['cover-options', instanceId] }),
+        qc.invalidateQueries({ queryKey: ['profile'] }),
+        qc.invalidateQueries({ queryKey: ['now-playing'] }),
+      ])
+      toast.success('Image deleted.')
+    } catch (e) {
+      toast.error(`Couldn't delete the image: ${(e as Error).message}`)
+      setBusy(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={remove}
+      disabled={busy}
+      aria-label={`Delete ${option.label}`}
+      title="Delete this image"
+      className={cn(
+        'absolute top-1 left-1 grid size-5 place-items-center rounded-full bg-background/90 text-foreground shadow ring-1 ring-border transition hover:bg-destructive hover:text-white',
+        busy && 'animate-pulse',
+      )}
+    >
+      <X className="size-3" />
+    </button>
+  )
+}
 
 /**
  * Paste a link (a shop's product page, a label's site, an image) and pick one

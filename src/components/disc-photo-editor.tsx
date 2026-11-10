@@ -4,7 +4,7 @@ import { Camera } from 'lucide-react'
 import { toast } from 'sonner'
 import { VinylDisc } from '#/components/vinyl-disc'
 import { Button } from '#/components/ui/button'
-import { LinkImages } from '#/components/link-images'
+import { LinkImages, RemoveLinkImage } from '#/components/link-images'
 import {
   addLinkImage,
   getCoverOptions,
@@ -135,7 +135,7 @@ export function DiscPhotoEditor({ record }: { record: CollectionRecord }) {
           )}
           <ul className="grid grid-cols-4 gap-2">
             {photos.map((o) => (
-              <li key={o.url}>
+              <li key={o.url} className="relative">
                 <button
                   type="button"
                   onClick={() => start(o)}
@@ -154,6 +154,15 @@ export function DiscPhotoEditor({ record }: { record: CollectionRecord }) {
                     />
                   )}
                 </button>
+                <RemoveLinkImage
+                  instanceId={record.instanceId}
+                  option={o}
+                  inUse={
+                    current?.url === o.url ||
+                    (record.artworkSource === 'custom' &&
+                      record.coverImage === o.url)
+                  }
+                />
               </li>
             ))}
           </ul>

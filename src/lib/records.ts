@@ -56,6 +56,7 @@ export type Viewer = {
   displayName: string | null
   avatarUrl: string | null
   preferredCurrency: string | null
+  secondaryCurrency: string | null
 }
 
 export type Track = {
@@ -94,7 +95,17 @@ export type CollectionRecord = {
   artworkSource: 'spotify' | 'itunes' | 'discogs' | 'custom'
   /** Anniversary / deluxe / expanded edition. */
   isSpecialEdition: boolean
+  /**
+   * When the copy joined the collection: the purchase date the owner typed
+   * in, else the date it was added to Discogs. Drives every date-based stat.
+   */
   dateAdded: string | null
+  /** The date it was added to Discogs, whatever `dateAdded` says. */
+  discogsAddedAt: string | null
+  /** "2024-06-11" as the owner typed it. Only sent to the owner. */
+  purchasedOn: string | null
+  /** The owner's own notes on this copy. Only sent to the owner. */
+  notes: string | null
   rating: number | null
   country: string | null
   communityHave: number | null
@@ -131,6 +142,8 @@ export type Profile = {
   > | null
   /** Currency to show amounts in (the viewer's choice, else the owner's). Null = as reported. */
   currency: string | null
+  /** Shown small beside amounts (the viewer's choice; the owner's for visitors). */
+  secondaryCurrency: string | null
   /** Units per 1 USD, for converting amounts. */
   rates: Rates | null
   /** What the collection's owner is spinning right now (public). */
@@ -157,6 +170,8 @@ export type CoverOption = {
    * also be used as a disc photo.
    */
   photo?: { width: number; height: number }
+  /** Added from a link and stored by Spinsight: the owner can delete it. */
+  stored?: true
 }
 
 export type NowPlaying = {

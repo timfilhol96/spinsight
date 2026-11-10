@@ -9,6 +9,7 @@ import {
   rankedTable,
 } from '#/components/charts'
 import { CurrencySelect } from '#/components/currency-select'
+import { SecondMoney } from '#/components/second-money'
 import { VinylSwatch } from '#/components/record-card'
 import { RecordRow } from '#/components/record-row'
 import { RecordSheet } from '#/components/record-sheet'
@@ -117,6 +118,10 @@ function InsightsPage() {
   const s = stats.summary
   const n = s.records
   const spent = stats.spending
+  const average = spent && {
+    amount: spent.spent.amount / spent.priced,
+    currency: spent.spent.currency,
+  }
   const decadeData = stats.decades[basis]
   const peakDecade = [...decadeData].sort((a, b) => b.count - a.count)[0]
   const enrichedShare = s.enriched / n
@@ -155,6 +160,10 @@ function InsightsPage() {
             <p className="mt-1 text-3xl font-semibold tracking-tight">
               {money(profile.collectionValue.median.money, { compact: true }) ??
                 profile.collectionValue.median.raw}
+              <SecondMoney
+                value={profile.collectionValue.median.money}
+                compact
+              />
             </p>
             <p className="mt-0.5 truncate text-xs text-muted-foreground">
               {money(profile.collectionValue.minimum.money, {
@@ -287,7 +296,7 @@ function InsightsPage() {
           <ChartCard
             className="lg:col-span-2"
             title="Records over time"
-            subtitle="Running total by the date each record was added to Discogs (not necessarily when it was bought)"
+            subtitle="Running total by purchase date where one is set on the record, else the date it was added to Discogs"
             table={{
               columns: ['Month', 'Added', 'Total'],
               rows: stats.growth
@@ -595,6 +604,16 @@ function InsightsPage() {
       {/* ---------- spending (owner only: prices paid are private) ---------- */}
       {profile.isOwner && (
         <Section kicker="Money" title="What you've spent">
+          <div className="-mt-2 mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+            <label className="flex items-center gap-1.5">
+              Show amounts in
+              <CurrencySelect value={profile.currency} />
+            </label>
+            <label className="flex items-center gap-1.5">
+              Also show them in
+              <CurrencySelect value={profile.secondaryCurrency} second />
+            </label>
+          </div>
           {!spent ? (
             <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
               Discogs doesn't keep what you paid, so Spinsight can: open any
@@ -606,24 +625,35 @@ function InsightsPage() {
               <div className="grid grid-cols-2 gap-3 md:col-span-2 lg:grid-cols-4">
                 <StatTile
                   label="Spent"
-                  value={money(spent.spent, { compact: true })}
+                  value={
+                    <>
+                      {money(spent.spent, { compact: true })}
+                      <SecondMoney value={spent.spent} compact />
+                    </>
+                  }
                   sub={`on ${spent.priced} of ${n} records`}
                 />
                 <StatTile
                   label="Average paid"
-                  value={money(
-                    {
-                      amount: spent.spent.amount / spent.priced,
-                      currency: spent.spent.currency,
-                    },
-                    { compact: true },
-                  )}
+                  value={
+                    <>
+                      {money(average, { compact: true })}
+                      <SecondMoney value={average} compact />
+                    </>
+                  }
                   sub="per record"
                 />
                 <StatTile
                   label="Worth today"
                   value={
-                    spent.worth ? money(spent.worth, { compact: true }) : '—'
+                    spent.worth ? (
+                      <>
+                        {money(spent.worth, { compact: true })}
+                        <SecondMoney value={spent.worth} compact />
+                      </>
+                    ) : (
+                      '—'
+                    )
                   }
                   sub={
                     spent.worth

@@ -15,6 +15,8 @@ import { VinylDisc } from '#/components/vinyl-disc'
 import { CoverPicker } from '#/components/cover-picker'
 import { DiscPhotoEditor } from '#/components/disc-photo-editor'
 import { PricePaid } from '#/components/price-paid'
+import { SecondMoney } from '#/components/second-money'
+import { CopyNotes, PurchaseDate } from '#/components/copy-details'
 import {
   PastPlayButton,
   PlayButton,
@@ -129,6 +131,8 @@ function RecordDetail({ record }: { record: CollectionRecord }) {
       {isOwner && (
         <div className="space-y-2">
           <PricePaid record={record} />
+          <PurchaseDate record={record} />
+          <CopyNotes record={record} />
           <CoverPicker record={record} />
           <DiscPhotoEditor record={record} />
         </div>
@@ -188,7 +192,14 @@ function RecordDetail({ record }: { record: CollectionRecord }) {
           <Stat
             icon={Tag}
             label="From"
-            value={money(record.lowestPrice, { compact: true })}
+            value={
+              record.lowestPrice && (
+                <>
+                  {money(record.lowestPrice, { compact: true })}
+                  <SecondMoney value={record.lowestPrice} compact />
+                </>
+              )
+            }
           />
         </div>
         {wantRatio && (

@@ -32,6 +32,7 @@ export const getViewer = createServerFn({ method: 'GET' }).handler(
       displayName: user.display_name,
       avatarUrl: user.avatar_url,
       preferredCurrency: user.preferred_currency,
+      secondaryCurrency: user.secondary_currency ?? null,
     }
   },
 )
@@ -218,7 +219,15 @@ export const getProfile = createServerFn({ method: 'GET' })
           ? 'custom'
           : (r.artwork_source ?? 'discogs'),
         isSpecialEdition: !!r.is_special_edition,
-        dateAdded: it.date_added,
+        // Noon local time, so the day doesn't shift across time zones.
+        dateAdded: it.purchased_on
+          ? `${it.purchased_on as string}T12:00:00`
+          : it.date_added,
+        discogsAddedAt: it.date_added,
+        purchasedOn: isOwner
+          ? ((it.purchased_on as string | null) ?? null)
+          : null,
+        notes: isOwner ? ((it.notes as string | null) ?? null) : null,
         rating: it.rating,
         country: r.country,
         communityHave: r.community_have,
@@ -255,6 +264,12 @@ export const getProfile = createServerFn({ method: 'GET' })
       }
     })
 
+    // Rows come newest-added on Discogs first; a purchase date can move a
+    // record, so "Recently added" follows the dates the page shows.
+    const time = (r: CollectionRecord) =>
+      r.dateAdded ? Date.parse(r.dateAdded) || 0 : 0
+    records.sort((a, b) => time(b) - time(a))
+
     const value = owner.collection_value as Record<
       'minimum' | 'median' | 'maximum',
       string
@@ -276,6 +291,9 @@ export const getProfile = createServerFn({ method: 'GET' })
             }
           : null,
       currency: viewer?.preferred_currency ?? owner.preferred_currency ?? null,
+      secondaryCurrency: viewer
+        ? (viewer.secondary_currency ?? null)
+        : (owner.secondary_currency ?? null),
       rates,
       nowPlaying,
       plays,
@@ -337,6 +355,23 @@ export const setPreferredCurrency = createServerFn({ method: 'POST' })
     return { currency: data.currency }
   })
 
+/** A second currency shown small beside amounts; null turns it off. */
+export const setSecondaryCurrency = createServerFn({ method: 'POST' })
+  .validator((d: { currency: string | null }) =>
+    z.object({ currency: z.enum(CURRENCIES).nullable() }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { requireUser } = await import('#/lib/session.server')
+    const { db } = await import('#/lib/supabase.server')
+    const user = await requireUser()
+    const { error } = await db()
+      .from('users')
+      .update({ secondary_currency: data.currency })
+      .eq('id', user.id)
+    if (error) throw new Error(error.message)
+    return { currency: data.currency }
+  })
+
 /** What the owner paid for one copy; null clears it. */
 export const setPricePaid = createServerFn({ method: 'POST' })
   .validator((d: { instanceId: number; price: Money | null }) =>
@@ -352,25 +387,72 @@ export const setPricePaid = createServerFn({ method: 'POST' })
       })
       .parse(d),
   )
-  .handler(async ({ data }) => {
-    const { requireUser } = await import('#/lib/session.server')
-    const { db } = await import('#/lib/supabase.server')
-    const user = await requireUser()
-    const { data: rows, error } = await db()
-      .from('collection_items')
-      .update({
-        price_paid: data.price
-          ? Math.round(data.price.amount * 100) / 100
-          : null,
-        price_paid_currency: data.price?.currency ?? null,
+  .handler(async ({ data }) =>
+    updateOwnCopy(data.instanceId, {
+      price_paid: data.price ? Math.round(data.price.amount * 100) / 100 : null,
+      price_paid_currency: data.price?.currency ?? null,
+    }),
+  )
+
+/** Updates one of the signed-in user's own copies. */
+async function updateOwnCopy(
+  instanceId: number,
+  patch: Record<string, unknown>,
+) {
+  const { requireUser } = await import('#/lib/session.server')
+  const { db } = await import('#/lib/supabase.server')
+  const user = await requireUser()
+  const { data: rows, error } = await db()
+    .from('collection_items')
+    .update(patch)
+    .eq('instance_id', instanceId)
+    .eq('user_id', user.id)
+    .select('instance_id')
+  if (error) throw new Error(error.message)
+  if (!rows.length) throw new Error('That record is not in your collection.')
+  return { ok: true }
+}
+
+/**
+ * When the owner bought a copy ("2024-06-11"); null goes back to the date it
+ * was added to Discogs. Not in the future, not before records existed.
+ */
+export const setPurchaseDate = createServerFn({ method: 'POST' })
+  .validator((d: { instanceId: number; date: string | null }) =>
+    z
+      .object({
+        instanceId: z.number().int().positive(),
+        date: z.iso
+          .date()
+          .refine(
+            (v) => v >= '1900-01-01' && v <= tomorrow(),
+            'Pick a date between 1900 and today.',
+          )
+          .nullable(),
       })
-      .eq('instance_id', data.instanceId)
-      .eq('user_id', user.id)
-      .select('instance_id')
-    if (error) throw new Error(error.message)
-    if (!rows.length) throw new Error('That record is not in your collection.')
-    return { ok: true }
-  })
+      .parse(d),
+  )
+  .handler(async ({ data }) =>
+    updateOwnCopy(data.instanceId, { purchased_on: data.date }),
+  )
+
+/** Today in the furthest-ahead time zone, so nobody's "today" is refused. */
+const tomorrow = () =>
+  new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)
+
+/** The owner's notes on a copy; empty clears them. */
+export const setCopyNotes = createServerFn({ method: 'POST' })
+  .validator((d: { instanceId: number; notes: string }) =>
+    z
+      .object({
+        instanceId: z.number().int().positive(),
+        notes: z.string().max(2000, 'Notes are limited to 2,000 characters.'),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) =>
+    updateOwnCopy(data.instanceId, { notes: data.notes.trim() || null }),
+  )
 
 const PlayContext = z
   .object({
@@ -556,6 +638,7 @@ async function coverOptionsFor(instanceId: number): Promise<CoverOption[]> {
       thumb: img.thumb,
       label: stored.length > 1 ? `From a link ${i + 1}` : 'From a link',
       photo: { width: img.width, height: img.height },
+      stored: true,
     }),
   )
   ;(full.images ?? []).slice(0, 12).forEach((img, i) =>
@@ -650,6 +733,59 @@ export const addLinkImage = createServerFn({ method: 'POST' })
       if (error) throw new Error(error.message)
     }
     return image
+  })
+
+/**
+ * Deletes an image added from a link. If it was this copy's cover or disc
+ * photo, the copy goes back to the automatic cover / drawn disc.
+ */
+export const removeLinkImage = createServerFn({ method: 'POST' })
+  .validator((d: { instanceId: number; url: string }) =>
+    z
+      .object({
+        instanceId: z.number().int().positive(),
+        url: z.string().url().max(2000),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const user = await requireOwnCopy(data.instanceId)
+    const { db } = await import('#/lib/supabase.server')
+    const { storedImagesFor, deleteStoredImage } =
+      await import('#/lib/link-image.server')
+    const stored = await storedImagesFor(user.id, data.instanceId)
+    const image = stored.find((i) => i.url === data.url)
+    if (!image) throw new Error('That image is not one you added.')
+    const { data: item, error } = await db()
+      .from('collection_items')
+      .select('cover_url, disc_photo')
+      .eq('instance_id', data.instanceId)
+      .eq('user_id', user.id)
+      .single()
+    if (error) throw new Error(error.message)
+    const patch: Record<string, null> = {}
+    if (item.cover_url === image.url) {
+      patch.cover_url = null
+      patch.cover_thumb = null
+    }
+    if ((item.disc_photo as DiscPhoto | null)?.url === image.url) {
+      patch.disc_photo = null
+      patch.disc_colors = null
+    }
+    // Unlink first: a cover pointing at a deleted file would show broken.
+    if (Object.keys(patch).length) {
+      const { error: updateError } = await db()
+        .from('collection_items')
+        .update(patch)
+        .eq('instance_id', data.instanceId)
+        .eq('user_id', user.id)
+      if (updateError) throw new Error(updateError.message)
+    }
+    await deleteStoredImage(image)
+    return {
+      wasCover: 'cover_url' in patch,
+      wasDisc: 'disc_photo' in patch,
+    }
   })
 
 // ---------- tracklist ----------
