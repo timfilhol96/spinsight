@@ -92,7 +92,7 @@ export type CollectionRecord = {
   /** Clean album artwork when found, else the Discogs image. */
   coverImage: string | null
   thumb: string | null
-  artworkSource: 'spotify' | 'itunes' | 'discogs' | 'custom'
+  artworkSource: 'caa' | 'spotify' | 'itunes' | 'discogs' | 'custom'
   /** Anniversary / deluxe / expanded edition. */
   isSpecialEdition: boolean
   /**

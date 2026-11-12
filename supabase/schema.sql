@@ -185,6 +185,7 @@ create table if not exists public.sync_runs (
   items_total int,
   items_added int,
   items_removed int,
+  full_walk boolean not null default false, -- walked the whole collection, not stopped early
   error text,
   started_at timestamptz not null default now(),
   finished_at timestamptz

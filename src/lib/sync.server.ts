@@ -16,6 +16,7 @@ import {
   findArtwork,
   missingTrackLengths,
 } from '#/lib/artwork.server'
+import type { Artwork } from '#/lib/artwork.server'
 import { editionTokens } from '#/lib/editions'
 import { env } from '#/lib/env.server'
 import { findSpotifyArtist } from '#/lib/spotify.server'
@@ -33,9 +34,50 @@ const auth = (u: UserRow): OAuthToken => ({
 
 export type SyncResult = { total: number; added: number; removed: number }
 
+/** How often a sync walks the whole collection even when nothing looks new. */
+const FULL_WALK_EVERY_MS = 7 * 86_400_000
+
+export type WalkStep = 'continue' | 'stop-early' | 'full-walk' | 'removals'
+
+/**
+ * What the collection walk does after a page, newest first. Kept pure so the
+ * rules can be checked by hand.
+ *
+ * - `full-walk`: the last full walk is over a week old (or never happened),
+ *   so walk every page anyway; ratings and folders change on old records too.
+ * - `continue`: this page had records we haven't seen; keep going.
+ * - `stop-early`: a whole page of records we already have, and our count plus
+ *   the new ones equals Discogs' total, so nothing was removed either.
+ * - `removals`: a whole page of known records but the counts don't add up, so
+ *   something was sold or removed; only a full walk can tell which.
+ */
+export function walkStep(s: {
+  /** When the user's last full walk started, or null if never. */
+  lastFullWalkAt: string | null
+  now: number
+  /** Every instance_id on this page was already in the database. */
+  pageAllKnown: boolean
+  /** Instances in the database before this sync. */
+  known: number
+  /** Instances seen so far in this sync that weren't in the database. */
+  added: number
+  /** Discogs' `pagination.items`. */
+  discogsItems: number
+}): WalkStep {
+  if (
+    !s.lastFullWalkAt ||
+    s.now - Date.parse(s.lastFullWalkAt) > FULL_WALK_EVERY_MS
+  )
+    return 'full-walk'
+  if (!s.pageAllKnown) return 'continue'
+  return s.known + s.added === s.discogsItems ? 'stop-early' : 'removals'
+}
+
 /**
  * Mirrors the user's Discogs collection (all folders) into the database.
- * Cheap: one request per 100 records, plus one for the collection value.
+ * Cheap: pages are read newest first and the walk stops at the first page of
+ * records we already have, unless something was removed or the last full
+ * walk is a week old. Plus one request for the collection value.
  */
 export async function syncCollection(
   user: UserRow,
@@ -56,7 +98,25 @@ export async function syncCollection(
     if (exErr) throw exErr
     const before = new Set((existing ?? []).map((r) => Number(r.instance_id)))
 
+    // Before migration 016 there's no full_walk column; the query errors, the
+    // date stays null and every sync walks everything, as it always did.
+    const { data: lastFull } = await supabase
+      .from('sync_runs')
+      .select('started_at')
+      .eq('user_id', user.id)
+      .eq('status', 'ok')
+      .eq('full_walk', true)
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const lastFullWalkAt = (lastFull?.started_at as string | undefined) ?? null
+
     const seen = new Set<number>()
+    let newSeen = 0
+    let discogsItems = 0
+    // Once a full walk is decided on, every page is read.
+    let fullWalk = false
+    let stoppedEarly = false
     const username = encodeURIComponent(user.discogs_username)
     for (let page = 1, pages = 1; page <= pages; page++) {
       const data = await discogsGet<DiscogsCollectionPage>(
@@ -64,6 +124,7 @@ export async function syncCollection(
         auth(user),
       )
       pages = data.pagination.pages
+      discogsItems = data.pagination.items
 
       // A release can appear twice (two copies), so de-dupe before upserting.
       const releases = new Map<number, Record<string, unknown>>()
@@ -99,6 +160,8 @@ export async function syncCollection(
       }
 
       const items = data.releases.map((item) => {
+        if (!seen.has(item.instance_id) && !before.has(item.instance_id))
+          newSeen++
         seen.add(item.instance_id)
         return {
           instance_id: item.instance_id,
@@ -115,10 +178,30 @@ export async function syncCollection(
           .upsert(items, { onConflict: 'instance_id' })
         if (error) throw error
       }
+
+      if (!fullWalk) {
+        const step = walkStep({
+          lastFullWalkAt,
+          now: Date.now(),
+          pageAllKnown: data.releases.every((i) => before.has(i.instance_id)),
+          known: before.size,
+          added: newSeen,
+          discogsItems,
+        })
+        if (step === 'stop-early') {
+          stoppedEarly = true
+          break
+        }
+        if (step !== 'continue') fullWalk = true
+      }
     }
 
-    // Records sold or removed on Discogs disappear here too.
-    const removedIds = [...before].filter((id) => !seen.has(id))
+    // Records sold or removed on Discogs disappear here too. Only a walk that
+    // reached the last page has seen everything; an early stop means the
+    // counts matched, so there is nothing to remove.
+    const removedIds = stoppedEarly
+      ? []
+      : [...before].filter((id) => !seen.has(id))
     if (removedIds.length) {
       const { error } = await supabase
         .from('collection_items')
@@ -158,7 +241,10 @@ export async function syncCollection(
       })
       .eq('id', user.id)
 
-    const result = { total: seen.size, added, removed: removedIds.length }
+    // After an early stop `seen` holds only the newest pages; the counts
+    // matched, so the collection is what we had plus what's new.
+    const total = stoppedEarly ? before.size + added : seen.size
+    const result = { total, added, removed: removedIds.length }
     if (run) {
       await supabase
         .from('sync_runs')
@@ -170,6 +256,12 @@ export async function syncCollection(
           finished_at: new Date().toISOString(),
         })
         .eq('id', run.id)
+      // On its own so a database without migration 016 still records the run.
+      if (!stoppedEarly)
+        await supabase
+          .from('sync_runs')
+          .update({ full_walk: true })
+          .eq('id', run.id)
     }
     return result
   } catch (e) {
@@ -307,6 +399,10 @@ export async function enrichBatch(
       todo.set(rel.id, rel)
   }
 
+  // Master id → its year (null when Discogs had none), for this batch, so two
+  // pressings of one album never fetch the same master.
+  const masterYears = new Map<number, number | null>()
+
   let processed = 0
   for (const rel of todo.values()) {
     if (Date.now() - started > budgetMs) break
@@ -315,12 +411,35 @@ export async function enrichBatch(
       `/releases/${rel.id}?curr_abbr=USD`,
       auth(user),
     )
-    const master = rel.master_id
-      ? await discogsGet<DiscogsMaster>(
-          `/masters/${rel.master_id}`,
-          auth(user),
-        ).catch(() => null)
-      : null
+    // The master is only fetched for its year, which every pressing shares:
+    // when another pressing already has it, that costs a database read, not a
+    // Discogs request. The earliest is taken, since a pressing whose master
+    // couldn't be read fell back to its own, later year.
+    let masterYear: number | null = null
+    if (rel.master_id) {
+      if (masterYears.has(rel.master_id)) {
+        masterYear = masterYears.get(rel.master_id) ?? null
+      } else {
+        const { data: sibling } = await supabase
+          .from('releases')
+          .select('original_year')
+          .eq('master_id', rel.master_id)
+          .not('original_year', 'is', null)
+          .order('original_year', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+        masterYear =
+          (sibling?.original_year as number | undefined) ??
+          (
+            await discogsGet<DiscogsMaster>(
+              `/masters/${rel.master_id}`,
+              auth(user),
+            ).catch(() => null)
+          )?.year ??
+          null
+        masterYears.set(rel.master_id, masterYear)
+      }
+    }
     const tracks = (full.tracklist ?? []).filter((t) => t.type_ === 'track')
     // Only trust Discogs' runtime when every track has a time; a partial sum
     // would undercount.
@@ -343,7 +462,10 @@ export async function enrichBatch(
     let artwork: Record<string, unknown> = {}
     try {
       const found = searchArtist
-        ? await findArtwork(searchArtist, rel.title, editionText)
+        ? await findArtwork(searchArtist, rel.title, editionText, {
+            masterId: rel.master_id,
+            releaseId: rel.id,
+          })
         : { album: null, edition: null }
       // A special edition only takes a streaming cover of the same edition;
       // otherwise the release's own Discogs image is used (artwork_url null).
@@ -356,13 +478,21 @@ export async function enrichBatch(
         album_artwork_thumb: found.album?.thumb ?? null,
         artwork_checked_at: new Date().toISOString(),
       }
+      // A Cover Art Archive cover has no tracklist, so when Discogs' times
+      // fall short the streaming album is looked up for lengths only.
+      let tracksAlbum: Artwork | null = found.album
+      if (!duration && searchArtist && found.album?.source === 'caa')
+        tracksAlbum = await findArtwork(searchArtist, rel.title).then(
+          (r) => r.album,
+          () => null,
+        )
       // Tracks without a Discogs time take their streaming length, matched
       // by song title (then searched song by song), so every track on the
       // card has one.
       if (!duration && searchArtist) {
         streamed = await missingTrackLengths(
           searchArtist,
-          found.album,
+          tracksAlbum,
           tracks.map((t) => ({
             ...t,
             artist: t.artists?.[0]
@@ -384,12 +514,12 @@ export async function enrichBatch(
       }
       // Some tracks still unknown: the digital album's length, counting only
       // as many tracks as the vinyl has.
-      if (!duration && found.album) {
+      if (!duration && tracksAlbum) {
         const sec = await albumDurationSec(
-          found.album,
+          tracksAlbum,
           tracks.length || undefined,
         )
-        if (sec) duration = { sec, source: found.album.source }
+        if (sec) duration = { sec, source: tracksAlbum.source }
       }
     } catch {
       // Sources down: leave artwork_checked_at alone and try again next run.
@@ -422,7 +552,7 @@ export async function enrichBatch(
         duration_sec: duration?.sec ?? null,
         duration_source: duration?.source ?? null,
         // A master's year is the first release; fall back to this pressing.
-        original_year: master?.year || rel.year || null,
+        original_year: masterYear || rel.year || null,
         is_special_edition: isEdition,
         ...artwork,
         details_version: DETAILS_VERSION,
@@ -459,7 +589,7 @@ async function enrichWantArtwork(
   const { data: rows, error } = await supabase
     .from('want_items')
     .select(
-      'release_id, title, artists, formats, artwork_url, artwork_checked_at',
+      'release_id, master_id, title, artists, formats, artwork_url, artwork_checked_at',
     )
     .eq('user_id', user.id)
     // Filled by the sync after migration 013; older rows wait for it.
@@ -468,6 +598,7 @@ async function enrichWantArtwork(
 
   type WantRow = {
     release_id: number
+    master_id: number | null
     title: string
     artists: Array<{ id: number; name: string }>
     formats: DiscogsFormat[] | null
@@ -491,7 +622,10 @@ async function enrichWantArtwork(
     let found: Awaited<ReturnType<typeof findArtwork>>
     try {
       found = searchArtist
-        ? await findArtwork(searchArtist, w.title, editionText)
+        ? await findArtwork(searchArtist, w.title, editionText, {
+            masterId: w.master_id,
+            releaseId: w.release_id,
+          })
         : { album: null, edition: null }
     } catch {
       // Sources down: stop here and try again on the next run.

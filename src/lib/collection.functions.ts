@@ -53,7 +53,7 @@ type ReleaseRow = {
   thumb: string | null
   artwork_url: string | null
   artwork_thumb: string | null
-  artwork_source: 'spotify' | 'itunes' | null
+  artwork_source: 'caa' | 'spotify' | 'itunes' | null
   album_artwork_url: string | null
   album_artwork_thumb: string | null
   is_special_edition: boolean | null

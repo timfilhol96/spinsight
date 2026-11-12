@@ -1,11 +1,13 @@
 import { editionTokens } from '#/lib/editions'
+import { recordFactsFor } from '#/lib/record-facts.server'
 import { spotifyAppToken } from '#/lib/spotify.server'
 import { trackSeconds } from '#/lib/track-follower'
 
 // Clean album artwork. A Discogs release's primary image is often a photo of
-// the sleeve and disc, so we look the album up on Spotify first, then Apple
-// (iTunes Search, no key needed), and only fall back to Discogs if neither
-// has a confident match.
+// the sleeve and disc, so we take the album's front cover from the Cover Art
+// Archive first (no key, no quota), then look the album up on Apple (iTunes
+// Search, no key needed), then Spotify, whose Development Mode quota is the
+// tightest, and only fall back to Discogs if none has a confident match.
 //
 // Special editions ("10th Anniversary", "Deluxe") often have their own
 // artwork, so for those we look for a streaming match of the same edition;
@@ -14,8 +16,11 @@ import { trackSeconds } from '#/lib/track-follower'
 export type Artwork = {
   url: string
   thumb: string
-  source: 'spotify' | 'itunes'
-  /** Spotify album id or Apple collection id, for looking up track lengths. */
+  source: 'caa' | 'spotify' | 'itunes'
+  /**
+   * Spotify album id or Apple collection id, for looking up track lengths;
+   * for the Cover Art Archive, the MusicBrainz release group (no tracks).
+   */
   id: string
   /** The streaming service's album name, e.g. "Peripheral Vision (10 Year Anniversary…)". */
   name: string
@@ -130,6 +135,47 @@ async function itunesSearch(
   )
 }
 
+/** The Discogs ids that lead to a MusicBrainz release group. */
+export type ArtworkIds = { masterId?: number | null; releaseId: number }
+
+const CAA_TIMEOUT_MS = 8_000
+
+/**
+ * The album's front cover from the Cover Art Archive, by MusicBrainz release
+ * group. The MBID comes from record_facts_cache, or else from MusicBrainz
+ * through its one-a-second queue (recordFactsFor caches the answer for the
+ * listening room too). Null on any miss or failure: it never throws.
+ */
+async function caaCover(
+  ids: ArtworkIds,
+  title: string,
+): Promise<Artwork | null> {
+  try {
+    const facts = await recordFactsFor(ids.masterId ?? undefined, ids.releaseId)
+    if (!facts?.mbid) return null
+    const base = `https://coverartarchive.org/release-group/${encodeURIComponent(facts.mbid)}`
+    // A release group with a front cover redirects to the image; without
+    // one it answers 404. Asking costs nothing, so check before storing a
+    // link that would break.
+    const res = await fetch(`${base}/front-500`, {
+      method: 'HEAD',
+      redirect: 'manual',
+      signal: AbortSignal.timeout(CAA_TIMEOUT_MS),
+    })
+    if (res.status >= 400) return null
+    return {
+      url: `${base}/front-500`,
+      thumb: `${base}/front-250`,
+      source: 'caa',
+      id: facts.mbid,
+      // The cache keeps no release-group title; this is the same album.
+      name: title,
+    }
+  } catch {
+    return null
+  }
+}
+
 function editionPhrase(tokens: string[]): string {
   const anniversary = tokens.find((t) => t.startsWith('anniversary:'))
   return anniversary ? `${anniversary.split(':')[1]}th anniversary` : tokens[0]
@@ -138,13 +184,16 @@ function editionPhrase(tokens: string[]): string {
 /**
  * Finds the album cover and, for special editions, an edition-specific one.
  * `editionText` is everything else that might name the edition (format text
- * and descriptions). Throws only if every source errored, so a transient
- * outage doesn't get cached as "no artwork".
+ * and descriptions). With `ids`, the regular cover comes from the Cover Art
+ * Archive when it has one; it has no tracklist, so callers needing track
+ * lengths search again without `ids`. Throws only if every streaming source
+ * errored, so a transient outage doesn't get cached as "no artwork".
  */
 export async function findArtwork(
   artist: string,
   title: string,
   editionText = '',
+  ids?: ArtworkIds,
 ): Promise<ArtworkResult> {
   const wanted = editionTokens(`${title} ${editionText}`)
   const base = matchKey(title)
@@ -155,11 +204,17 @@ export async function findArtwork(
     isAlbum(c) && editionTokens(c.name).some((t) => wanted.includes(t))
   const strip = ({ artists: _artists, ...art }: Hit): Artwork => art
 
-  let album: Hit | undefined
+  // Only ever the regular cover: an edition's own artwork isn't told apart
+  // there, so editions still look for a streaming match below.
+  const caa = ids ? await caaCover(ids, title) : null
+  let album: Hit | undefined = caa ? { ...caa, artists: [artist] } : undefined
   let edition: Hit | undefined
   let failures = 0
-  const sources = [spotifySearch, itunesSearch]
+  // Spotify last: its Development Mode quota is the one we'd run out of.
+  const sources = [itunesSearch, spotifySearch]
   for (const search of sources) {
+    // Checked first too, so a Cover Art Archive hit skips streaming search.
+    if (album && (!wanted.length || edition)) break
     try {
       const queries = [`${searchTitle(title)} ${artist}`]
       // Editions are often missing from a plain search; ask for them by name too.
@@ -177,7 +232,6 @@ export async function findArtwork(
       failures++
       console.warn('[artwork]', (e as Error).message, artist, title)
     }
-    if (album && (!wanted.length || edition)) break
   }
   if (failures === sources.length)
     throw new Error('Artwork sources unavailable')
@@ -189,10 +243,21 @@ export async function findArtwork(
 
 export type StreamedTrack = { name: string; sec: number }
 
-/** A streaming album's tracks, in album order, with lengths in seconds. */
+type StreamingArtwork = Artwork & { source: Exclude<Artwork['source'], 'caa'> }
+
+/** The album when it's a streaming one; a Cover Art Archive scan has no tracks. */
+const streamingOnly = (art: Artwork | null): StreamingArtwork | null =>
+  art && art.source !== 'caa' ? (art as StreamingArtwork) : null
+
+/**
+ * A streaming album's tracks, in album order, with lengths in seconds. Null
+ * for a Cover Art Archive cover, which has no tracklist: its id is a
+ * MusicBrainz one that no track endpoint knows.
+ */
 export async function albumTracks(
   art: Pick<Artwork, 'id' | 'source'>,
-): Promise<StreamedTrack[]> {
+): Promise<StreamedTrack[] | null> {
+  if (art.source === 'caa') return null
   if (art.source === 'spotify') {
     const token = await spotifyAppToken()
     if (!token) return []
@@ -239,7 +304,7 @@ export async function albumTracks(
 export async function albumTrackLengths(
   art: Pick<Artwork, 'id' | 'source'>,
 ): Promise<number[]> {
-  return (await albumTracks(art)).map((t) => t.sec)
+  return ((await albumTracks(art)) ?? []).map((t) => t.sec)
 }
 
 /**
@@ -380,7 +445,11 @@ export async function missingTrackLengths(
 } | null> {
   const missing = vinylTracks.filter((t) => trackSeconds(t.duration) === 0)
   if (!missing.length) return null
-  const streamed = album ? await albumTracks(album) : []
+  // A Cover Art Archive cover has no tracks; the songs are searched one by one.
+  const streamingAlbum = streamingOnly(album)
+  const streamed = streamingAlbum
+    ? ((await albumTracks(streamingAlbum)) ?? [])
+    : []
   const lengths: Array<{ position: string; sec: number }> = []
   const used = new Set<number>()
   for (const t of missing) {
@@ -417,21 +486,23 @@ export async function missingTrackLengths(
 
   if (!lengths.length) return null
   return {
-    source: fromAlbum && album ? album.source : 'spotify',
+    source: fromAlbum && streamingAlbum ? streamingAlbum.source : 'spotify',
     lengths,
-    album: fromAlbum && album ? album.name : null,
+    album: fromAlbum && streamingAlbum ? streamingAlbum.name : null,
   }
 }
 
 /**
  * Total length of a streaming album in seconds, used when Discogs has no
  * track times. If the vinyl's track count is known, only that many tracks are
- * summed, so digital bonus tracks don't inflate it. Null if unavailable.
+ * summed, so digital bonus tracks don't inflate it. Null if unavailable,
+ * and always for a Cover Art Archive cover, which has no tracklist.
  */
 export async function albumDurationSec(
   art: Pick<Artwork, 'id' | 'source'>,
   vinylTrackCount?: number,
 ): Promise<number | null> {
+  if (art.source === 'caa') return null
   const lengths = await albumTrackLengths(art)
   if (!lengths.length) return null
   const counted =

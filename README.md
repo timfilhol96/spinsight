@@ -31,14 +31,19 @@ TanStack Query · Supabase (Postgres) · Vercel.
   access token is stored server-side; the browser only gets an encrypted
   session cookie.
 - **Sync** (`src/lib/sync.server.ts`): the collection list costs one Discogs
-  request per 100 records. **Enrichment** then fetches each release's
-  have/want, lowest price (in USD) and tracklist, the original release year
-  from its Discogs master, and clean artwork, in short batches, because
-  Discogs allows about 60 requests a minute.
+  request per 100 records, read newest first and stopped at the first page
+  of records already mirrored, unless the counts show something was removed
+  or the last full walk is a week old (`sync_runs.full_walk`, migration 016).
+  **Enrichment** then fetches each release's have/want, lowest price (in USD)
+  and tracklist, the original release year from its Discogs master (once per
+  master: other pressings reuse it), and clean artwork, in short batches,
+  because Discogs allows about 60 requests a minute.
 - **Daily cron** (`vercel.json` → `/api/cron/sync`) re-syncs everyone.
-- **Artwork** (`src/lib/artwork.server.ts`): clean covers come from Spotify
-  album search, then Apple (iTunes Search), with the Discogs image as the
-  last resort, since Discogs' primary image is sometimes a photo of the disc.
+- **Artwork** (`src/lib/artwork.server.ts`): clean covers come from the Cover
+  Art Archive (by the MusicBrainz release group, from `record_facts_cache`),
+  then Apple (iTunes Search), then Spotify album search, whose Development
+  Mode quota is the tightest, with the Discogs image as the last resort,
+  since Discogs' primary image is sometimes a photo of the disc.
   Special editions (anniversary, deluxe…, see `src/lib/editions.ts`) only take
   a streaming cover of the same edition, else their own Discogs image. The
   owner can override any cover from the record panel, including with an image
