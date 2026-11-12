@@ -8,6 +8,7 @@ const STATIC = `spinsight-static-${VERSION}`
 const COVERS = `spinsight-covers-${VERSION}`
 const OFFLINE_URL = '/offline.html'
 const COVER_HOSTS = [
+  'coverartarchive.org',
   'i.scdn.co',
   'i.discogs.com',
   'mzstatic.com',

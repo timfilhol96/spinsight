@@ -112,7 +112,8 @@ function dominantColors(
 }
 
 /** Hosts album artwork comes from; nothing else gets fetched. */
-const ARTWORK_HOSTS = /(^|\.)(scdn\.co|mzstatic\.com|discogs\.com)$/
+const ARTWORK_HOSTS =
+  /(^|\.)(coverartarchive\.org|scdn\.co|mzstatic\.com|discogs\.com)$/
 
 /** Covers added from a link live in our own Supabase Storage. */
 const isStoredCover = (url: URL) =>
