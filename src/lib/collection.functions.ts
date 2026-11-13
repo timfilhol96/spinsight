@@ -113,6 +113,9 @@ export const getProfile = createServerFn({ method: 'GET' })
     if (!owner) return null
     const isOwner = viewer?.id === owner.id
     if (!owner.is_public && !isOwner) return null
+    // Listening can be kept private while the collection is public: then
+    // visitors get no plays, play counts or now playing.
+    const listeningHidden = !isOwner && owner.share_listening === false
 
     const [{ data: items, error }, { data: playRows }, rates, nowPlaying] =
       await Promise.all([
@@ -124,19 +127,20 @@ export const getProfile = createServerFn({ method: 'GET' })
             .eq('user_id', owner.id)
             .order('date_added', { ascending: false }),
         ),
-        timed('plays', async () =>
-          supabase
-            .from('plays')
-            .select('id, release_id, played_at, source')
-            .eq('user_id', owner.id)
-            .order('played_at', { ascending: false })
-            .limit(2000),
-        ),
+        listeningHidden
+          ? { data: [] }
+          : timed('plays', async () =>
+              supabase
+                .from('plays')
+                .select('id, release_id, played_at, ended_at, source')
+                .eq('user_id', owner.id)
+                .order('played_at', { ascending: false })
+                .limit(2000),
+            ),
         timed('rates', usdRates),
-        // Listening can be kept private while the collection is public.
-        isOwner || owner.share_listening !== false
-          ? timed('now-playing', () => nowPlayingFor(owner.id))
-          : null,
+        listeningHidden
+          ? null
+          : timed('now-playing', () => nowPlayingFor(owner.id)),
       ])
     if (error) throw new Error(error.message)
 
@@ -170,6 +174,7 @@ export const getProfile = createServerFn({ method: 'GET' })
         id: p.id as string,
         releaseId: Number(p.release_id),
         playedAt: p.played_at as string,
+        endedAt: (p.ended_at as string | null) ?? null,
         source: p.source as 'manual' | 'picker',
       }))
       .filter((p) => owned.has(p.releaseId))
@@ -296,6 +301,7 @@ export const getProfile = createServerFn({ method: 'GET' })
         : (owner.secondary_currency ?? null),
       rates,
       nowPlaying,
+      listeningHidden,
       plays,
       records,
     }

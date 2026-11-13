@@ -47,6 +47,8 @@ export type Play = {
   id: string
   releaseId: number
   playedAt: string
+  /** "Done" pressed, or the next record started. Null while it may still spin. */
+  endedAt: string | null
   source: 'manual' | 'picker'
 }
 
@@ -148,6 +150,11 @@ export type Profile = {
   rates: Rates | null
   /** What the collection's owner is spinning right now (public). */
   nowPlaying: NowPlaying | null
+  /**
+   * A visitor, and the owner keeps listening private: `plays` is empty and
+   * play counts are zero, so say "private" rather than show them.
+   */
+  listeningHidden: boolean
   /** Most recent plays first (capped). */
   plays: Play[]
   records: CollectionRecord[]

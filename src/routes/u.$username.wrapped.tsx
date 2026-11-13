@@ -2,13 +2,18 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { Link2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { ChartCard, ColumnChart } from '#/components/charts'
+import { ChartCard, ColumnChart, StatTile } from '#/components/charts'
 import { RecordSheet } from '#/components/record-sheet'
 import { VinylDisc } from '#/components/vinyl-disc'
 import { Button } from '#/components/ui/button'
 import { formatDuration } from '#/lib/records'
 import type { CollectionRecord } from '#/lib/records'
-import { yearInVinyl, yearsWithAdditions } from '#/lib/stats'
+import {
+  formatListening,
+  listeningInYear,
+  yearInVinyl,
+  yearsWithAdditions,
+} from '#/lib/stats'
 import { useRecordTheme } from '#/lib/theme'
 import { useProfile } from '#/lib/use-profile'
 import { cn } from '#/lib/utils'
@@ -43,6 +48,10 @@ function WrappedPage() {
   const w = useMemo(
     () => (year ? yearInVinyl(profile.records, year) : null),
     [profile.records, year],
+  )
+  const heard = useMemo(
+    () => (year ? listeningInYear(profile.records, profile.plays, year) : null),
+    [profile.records, profile.plays, year],
   )
 
   // The year takes on the colour of the first coloured record added that year.
@@ -181,6 +190,48 @@ function WrappedPage() {
           </div>
         </div>
       </section>
+
+      {heard && heard.spins > 0 && (
+        <section className="mt-10">
+          <h2 className="mb-4 text-2xl font-bold">
+            On the turntable in {year}
+          </h2>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatTile label="Spins logged" value={heard.spins} />
+            <StatTile
+              label="Time listening"
+              value={formatListening(heard.totalSec)}
+              sub={
+                heard.estimated
+                  ? `${heard.estimated} estimated, no track times`
+                  : undefined
+              }
+            />
+            {heard.topArtist && (
+              <div className="col-span-2 grid lg:col-span-1">
+                <StatTile
+                  label="Most played artist"
+                  value={
+                    <span className="block truncate">
+                      {heard.topArtist.name}
+                    </span>
+                  }
+                  sub={`${heard.topArtist.count} ${heard.topArtist.count === 1 ? 'spin' : 'spins'}`}
+                />
+              </div>
+            )}
+            {heard.topRecord && (
+              <div className="col-span-2 grid lg:col-span-1">
+                <Moment
+                  label={`Most played · ${heard.topRecord.count} ${heard.topRecord.count === 1 ? 'spin' : 'spins'}`}
+                  record={heard.topRecord.record}
+                  onOpen={open}
+                />
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="mt-10">
         <h2 className="mb-4 text-2xl font-bold">Everything added in {year}</h2>

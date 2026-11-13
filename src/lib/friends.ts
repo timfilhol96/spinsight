@@ -1,10 +1,9 @@
 // Friends: types shared with the server, and comparisons between two
 // collections. Like stats.ts, the comparisons are pure and run in the browser
 // on two already-loaded profiles.
-import { DEFAULT_RUNTIME_SEC } from '#/lib/records'
 import type { CollectionRecord, Play, Reaction } from '#/lib/records'
 import type { VinylLook } from '#/lib/vinyl-color'
-import { artists, decadeOf, genres, styles } from '#/lib/stats'
+import { artists, decadeOf, genres, styles, timeListening } from '#/lib/stats'
 import type { Ranked } from '#/lib/stats'
 
 /** The emoji a friend can put on your spin. */
@@ -364,12 +363,9 @@ function sideOfYear(records: CollectionRecord[], plays: Play[], year: number) {
   const spun = plays.filter((p) => new Date(p.playedAt).getFullYear() === year)
   const byRelease = new Map(records.map((r) => [r.releaseId, r]))
   const spinCounts = new Map<number, number>()
-  let minutes = 0
-  for (const p of spun) {
+  for (const p of spun)
     spinCounts.set(p.releaseId, (spinCounts.get(p.releaseId) ?? 0) + 1)
-    const sec = byRelease.get(p.releaseId)?.durationSec
-    minutes += (sec ?? DEFAULT_RUNTIME_SEC) / 60
-  }
+  const minutes = timeListening(records, spun).totalSec / 60
   const topSpin = [...spinCounts].sort((x, y) => y[1] - x[1])[0]
   const spunRecords = spun
     .map((p) => byRelease.get(p.releaseId))

@@ -32,7 +32,7 @@ export function RecordTable({
   onSort: (sort: TableSort) => void
   onOpen: (r: CollectionRecord) => void
 }) {
-  const { isOwner } = useProfile()
+  const { isOwner, listeningHidden } = useProfile()
   const money = useMoney()
   const header = (label: string, key?: TableSort, className?: string) => (
     <th
@@ -75,7 +75,7 @@ export function RecordTable({
             {/* What was paid is private, like the record sheet's price. */}
             {isOwner &&
               header('Paid', undefined, 'hidden text-right sm:table-cell')}
-            {header('Plays', undefined, 'text-right')}
+            {!listeningHidden && header('Plays', undefined, 'text-right')}
           </tr>
         </thead>
         <tbody>
@@ -161,11 +161,13 @@ export function RecordTable({
                     )}
                   </td>
                 )}
-                <td className="px-2 text-right tabular-nums">
-                  {r.playCount || (
-                    <span className="text-muted-foreground">0</span>
-                  )}
-                </td>
+                {!listeningHidden && (
+                  <td className="px-2 text-right tabular-nums">
+                    {r.playCount || (
+                      <span className="text-muted-foreground">0</span>
+                    )}
+                  </td>
+                )}
               </tr>
             )
           })}

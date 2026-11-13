@@ -11,7 +11,11 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { PlayButton, playSummary } from '#/components/play-button'
+import {
+  PlayButton,
+  PlayedItButton,
+  playSummary,
+} from '#/components/play-button'
 import { VinylSwatch } from '#/components/record-card'
 import { RecordSheet } from '#/components/record-sheet'
 import { VinylDisc } from '#/components/vinyl-disc'
@@ -630,12 +634,15 @@ function Result({
 
         <div className="mt-8 flex flex-wrap items-center gap-2">
           {canPlay && (
-            <PlayButton
-              record={r}
-              source="picker"
-              context={context}
-              size="lg"
-            />
+            <>
+              <PlayButton
+                record={r}
+                source="picker"
+                context={context}
+                size="lg"
+              />
+              <PlayedItButton record={r} context={context} size="lg" />
+            </>
           )}
           <Button size="lg" variant="outline" onClick={onAgain}>
             <Shuffle /> Another one

@@ -33,6 +33,7 @@ export function demoProfile(): Profile {
         id: `demo-${i}-${n}`,
         releaseId: 1000 + i,
         playedAt: hoursAgo(6 + i * 17 + n * 61),
+        endedAt: null,
         source: n % 3 ? 'picker' : 'manual',
       })
   })
@@ -97,6 +98,7 @@ export function demoProfile(): Profile {
     avatarUrl: null,
     isOwner: true,
     isPublic: true,
+    listeningHidden: false,
     lastSyncedAt: hoursAgo(2),
     // Kept out of screenshots on purpose.
     collectionValue: null,

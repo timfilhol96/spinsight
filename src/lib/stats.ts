@@ -2,6 +2,7 @@
 // the browser (collections are small enough, and friends' pages reuse them).
 import { convert } from '#/lib/currency'
 import type { Money, Rates } from '#/lib/currency'
+import { DEFAULT_RUNTIME_SEC } from '#/lib/records'
 import type { CollectionRecord, Play } from '#/lib/records'
 import { isColoredVinyl } from '#/lib/vinyl-color'
 
@@ -471,12 +472,91 @@ export function yearInVinyl(records: CollectionRecord[], year: number) {
   }
 }
 
+/** The year's logged spins: how many, for how long, and what most. */
+export function listeningInYear(
+  records: CollectionRecord[],
+  plays: Play[],
+  year: number,
+) {
+  const spun = plays.filter((p) => new Date(p.playedAt).getFullYear() === year)
+  const byRelease = new Map(records.map((r) => [r.releaseId, r]))
+  const counts = new Map<number, number>()
+  for (const p of spun)
+    counts.set(p.releaseId, (counts.get(p.releaseId) ?? 0) + 1)
+  const top = [...counts].sort((a, b) => b[1] - a[1]).at(0)
+  const topRecord = top && byRelease.get(top[0])
+  return {
+    spins: spun.length,
+    ...timeListening(records, spun),
+    topArtist: playedArtists(records, spun, 1)[0] ?? null,
+    topRecord: topRecord ? { record: topRecord, count: top[1] } : null,
+  }
+}
+
 // ---------- listening (from logged plays) ----------
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const DAYPARTS = ['Morning', 'Afternoon', 'Evening', 'Night'] as const
 const daypart = (h: number) =>
   h >= 5 && h < 12 ? 0 : h < 17 ? 1 : h < 22 ? 2 : 3
+
+/**
+ * How long a spin lasted: the record's runtime, cut short when "Done" was
+ * pressed (or the next record started) before the end. Runtime unknown =
+ * a typical LP; `estimated` says so.
+ */
+export function listenedSec(
+  play: Play,
+  record: CollectionRecord | undefined,
+  now = Date.now(),
+): { sec: number; estimated: boolean } {
+  const known = record?.durationSec ?? null
+  const runtime = known ?? DEFAULT_RUNTIME_SEC
+  const start = new Date(play.playedAt).getTime()
+  const end = play.endedAt ? new Date(play.endedAt).getTime() : now
+  const sec = Math.max(0, Math.min(runtime, (end - start) / 1000))
+  return { sec, estimated: known == null }
+}
+
+/** Total time spent listening, and how many spins had no known runtime. */
+export function timeListening(
+  records: CollectionRecord[],
+  plays: Play[],
+  now = Date.now(),
+) {
+  const byRelease = new Map(records.map((r) => [r.releaseId, r]))
+  let totalSec = 0
+  let estimated = 0
+  for (const p of plays) {
+    const t = listenedSec(p, byRelease.get(p.releaseId), now)
+    totalSec += t.sec
+    if (t.estimated) estimated++
+  }
+  return { totalSec, estimated }
+}
+
+/** Artists ranked by logged spins. */
+export function playedArtists(
+  records: CollectionRecord[],
+  plays: Play[],
+  limit = 5,
+): Ranked[] {
+  const byRelease = new Map(records.map((r) => [r.releaseId, r]))
+  return rank(
+    plays.map((p) => byRelease.get(p.releaseId)?.artist ?? ''),
+    limit,
+  )
+}
+
+/** "45 min", "12 h", "1,204 h": listening time at a glance. */
+export function formatListening(sec: number): string {
+  const mins = Math.round(sec / 60)
+  if (mins < 60) return `${mins} min`
+  const hours = sec / 3600
+  return hours < 10
+    ? `${Math.floor(hours)} h ${Math.round((sec % 3600) / 60)} min`
+    : `${Math.round(hours).toLocaleString()} h`
+}
 
 export function listening(
   records: CollectionRecord[],
@@ -491,6 +571,7 @@ export function listening(
     byDay[(d.getDay() + 6) % 7]++
     byPart[daypart(d.getHours())]++
   }
+  const time = timeListening(records, plays)
   const neverPlayed = records
     .filter((r) => r.playCount === 0)
     // Longest-owned first: the true dust collectors.
@@ -499,6 +580,12 @@ export function listening(
     total: plays.length,
     playedShare: records.length ? played.length / records.length : 0,
     fromPicker: plays.filter((p) => p.source === 'picker').length,
+    totalSec: time.totalSec,
+    /** Spins of records with no track times, counted as a typical LP. */
+    estimatedSpins: time.estimated,
+    topArtists: playedArtists(records, plays, limit),
+    /** Distinct artists with at least one spin. */
+    artistsPlayed: playedArtists(records, plays, Infinity).length,
     mostPlayed: [...played]
       .sort(
         (a, b) =>

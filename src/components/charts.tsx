@@ -329,8 +329,9 @@ export const rankedTable = (
   items: Ranked[],
   first: string,
   total: number,
+  counted = 'Records',
 ): TableData => ({
-  columns: [first, 'Records', 'Share'],
+  columns: [first, counted, 'Share'],
   rows: items.map((i) => [
     i.name,
     i.count,

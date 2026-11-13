@@ -200,95 +200,123 @@ function InsightsPage() {
         </section>
       )}
 
-      {/* ---------- listening ---------- */}
-      <Section kicker="On the turntable" title="Listening">
-        {stats.listening.total === 0 ? (
-          <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
-            No spins logged yet.{' '}
-            {profile.isOwner && (
-              <>
-                Hit “I'm playing this” on a record, or{' '}
-                <Link
-                  to="/u/$username/pick"
-                  params={{ username: profile.username }}
-                  className="font-medium text-record-1 underline-offset-4 hover:underline"
+      {/* ---------- listening (left out when the owner keeps it private) ---------- */}
+      {!profile.listeningHidden && (
+        <Section kicker="On the turntable" title="Listening">
+          {stats.listening.total === 0 ? (
+            <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
+              No spins logged yet.{' '}
+              {profile.isOwner && (
+                <>
+                  Hit “I'm playing this” on a record, or{' '}
+                  <Link
+                    to="/u/$username/pick"
+                    params={{ username: profile.username }}
+                    className="font-medium text-record-1 underline-offset-4 hover:underline"
+                  >
+                    let the picker choose
+                  </Link>
+                  .
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <div className="grid grid-cols-2 gap-4 lg:col-span-3 lg:grid-cols-4">
+                <StatTile
+                  label="Spins logged"
+                  value={stats.listening.total}
+                  sub={`${stats.listening.fromPicker} chosen by the picker`}
+                />
+                <StatTile
+                  label="Time listening"
+                  value={S.formatListening(stats.listening.totalSec)}
+                  sub={
+                    stats.listening.estimatedSpins
+                      ? `${stats.listening.estimatedSpins} ${stats.listening.estimatedSpins === 1 ? 'spin' : 'spins'} estimated, no track times`
+                      : 'From track times'
+                  }
+                />
+                <StatTile
+                  label="Records played"
+                  value={`${Math.round(stats.listening.playedShare * 100)}%`}
+                  sub={`${n - stats.listening.neverPlayed.length} of ${n}`}
+                />
+                <StatTile
+                  label="Dust collectors"
+                  value={stats.listening.neverPlayed.length}
+                  sub="Never logged a spin"
+                />
+              </div>
+              <RankCard
+                title="Most played"
+                subtitle="Logged spins"
+                records={stats.listening.mostPlayed}
+                metric={(r) => r.playCount}
+                onOpen={open}
+              />
+              <ChartCard
+                title="Most played artists"
+                subtitle={`Logged spins, across ${stats.listening.artistsPlayed} ${stats.listening.artistsPlayed === 1 ? 'artist' : 'artists'}. Click to browse.`}
+                table={rankedTable(
+                  stats.listening.topArtists,
+                  'Artist',
+                  stats.listening.total,
+                  'Spins',
+                )}
+              >
+                <BarList
+                  items={stats.listening.topArtists}
+                  total={stats.listening.total}
+                  unit="spin"
+                  onSelect={(artist) => showInCollection({ artist })}
+                />
+              </ChartCard>
+              <RankCard
+                title="Dust collectors"
+                subtitle="Never played, longest-owned first"
+                records={stats.listening.neverPlayed.slice(0, 5)}
+                metric={() => ''}
+                onOpen={open}
+              />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-3">
+                <ChartCard
+                  title="When you listen"
+                  table={{
+                    columns: ['Day', 'Spins'],
+                    rows: stats.listening.byWeekday.map((d) => [
+                      d.label,
+                      d.count,
+                    ]),
+                  }}
                 >
-                  let the picker choose
-                </Link>
-                .
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:col-span-3">
-              <StatTile
-                label="Spins logged"
-                value={stats.listening.total}
-                sub={`${stats.listening.fromPicker} chosen by the picker`}
-              />
-              <StatTile
-                label="Records played"
-                value={`${Math.round(stats.listening.playedShare * 100)}%`}
-                sub={`${n - stats.listening.neverPlayed.length} of ${n}`}
-              />
-              <StatTile
-                label="Dust collectors"
-                value={stats.listening.neverPlayed.length}
-                sub="Never logged a spin"
-              />
+                  <ColumnChart
+                    data={stats.listening.byWeekday}
+                    unit="spin"
+                    height={140}
+                  />
+                </ChartCard>
+                <ChartCard
+                  title="Time of day"
+                  table={{
+                    columns: ['Time', 'Spins'],
+                    rows: stats.listening.byDaypart.map((d) => [
+                      d.label,
+                      d.count,
+                    ]),
+                  }}
+                >
+                  <ColumnChart
+                    data={stats.listening.byDaypart}
+                    unit="spin"
+                    height={140}
+                  />
+                </ChartCard>
+              </div>
             </div>
-            <RankCard
-              title="Most played"
-              subtitle="Logged spins"
-              records={stats.listening.mostPlayed}
-              metric={(r) => r.playCount}
-              onOpen={open}
-            />
-            <RankCard
-              title="Dust collectors"
-              subtitle="Never played, longest-owned first"
-              records={stats.listening.neverPlayed.slice(0, 5)}
-              metric={() => ''}
-              onOpen={open}
-            />
-            <div className="grid grid-cols-1 gap-4">
-              <ChartCard
-                title="When you listen"
-                table={{
-                  columns: ['Day', 'Spins'],
-                  rows: stats.listening.byWeekday.map((d) => [
-                    d.label,
-                    d.count,
-                  ]),
-                }}
-              >
-                <ColumnChart
-                  data={stats.listening.byWeekday}
-                  unit="spin"
-                  height={140}
-                />
-              </ChartCard>
-              <ChartCard
-                title="Time of day"
-                table={{
-                  columns: ['Time', 'Spins'],
-                  rows: stats.listening.byDaypart.map((d) => [
-                    d.label,
-                    d.count,
-                  ]),
-                }}
-              >
-                <ColumnChart
-                  data={stats.listening.byDaypart}
-                  unit="spin"
-                  height={140}
-                />
-              </ChartCard>
-            </div>
-          </div>
-        )}
-      </Section>
+          )}
+        </Section>
+      )}
 
       {/* ---------- growth ---------- */}
       <Section kicker="Digging habits" title="How the collection grew">

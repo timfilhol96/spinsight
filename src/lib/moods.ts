@@ -226,12 +226,74 @@ export const WEATHERS = {
 } satisfies Record<string, { label: string; icon: string; nudge: Vibe }>
 export type Weather = keyof typeof WEATHERS
 
+// Each length has a range with some slack, so a 28-minute LP still counts as
+// an album. Records known to be too short are left out; too long is only a
+// nudge, since one side of a long record still fills the time (see
+// `rankRecords`).
 export const LENGTHS = {
-  side: { label: 'Just a side', hint: '~20 min', maxSec: 35 * 60 },
-  album: { label: 'A full album', hint: '30–60 min', maxSec: 65 * 60 },
-  epic: { label: 'Something epic', hint: '60 min+', minSec: 55 * 60 },
+  side: { label: 'Just a side', hint: '~20 min', minSec: 0, maxSec: 35 * 60 },
+  album: {
+    label: 'A full album',
+    hint: '30–60 min',
+    minSec: 25 * 60,
+    maxSec: 65 * 60,
+  },
+  epic: {
+    label: 'Something epic',
+    hint: '60 min+',
+    minSec: 55 * 60,
+    maxSec: Infinity,
+  },
 } as const
 export type Length = keyof typeof LENGTHS
+
+/**
+ * The record's runtime, or a rough one from its format when no track times
+ * are known: singles and EPs are short whatever they are. Null = no idea.
+ */
+export function likelyRuntimeSec(r: CollectionRecord): number | null {
+  if (r.durationSec) return r.durationSec
+  const d = r.formatDescriptions
+  if (d.includes('LP')) return null
+  if (d.some((x) => /^(Single|Maxi-Single)$/.test(x)) || d.includes('7"'))
+    return 10 * 60
+  if (d.some((x) => /^(EP|Mini-Album)$/.test(x))) return 20 * 60
+  return null
+}
+
+/** How the record compares with the time asked for. Null when its length is unknown. */
+export function lengthFit(
+  r: CollectionRecord,
+  length: Length,
+): 'short' | 'fits' | 'long' | null {
+  const sec = likelyRuntimeSec(r)
+  if (!sec) return null
+  const spec = LENGTHS[length]
+  return sec < spec.minSec ? 'short' : sec > spec.maxSec ? 'long' : 'fits'
+}
+
+// ---------- holiday records ----------
+
+/** Christmas records: Discogs' "Holiday" style, or Christmas in the title. */
+export function isHoliday(r: CollectionRecord): boolean {
+  return r.styles.includes('Holiday') || /\b(christmas|xmas)\b/i.test(r.title)
+}
+
+/** December up to Twelfth Night (6 January), when holiday records are welcome. */
+export function holidaySeason(d = new Date()): boolean {
+  const m = d.getMonth()
+  return m === 11 || (m === 0 && d.getDate() <= 6)
+}
+
+/** Leaves Christmas records out of the season, unless that leaves nothing. */
+export function inSeason<T extends CollectionRecord>(
+  records: T[],
+  now = new Date(),
+): T[] {
+  if (holidaySeason(now)) return records
+  const rest = records.filter((r) => !isHoliday(r))
+  return rest.length ? rest : records
+}
 
 export type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'night'
 export function timeOfDay(d = new Date()): TimeOfDay {
@@ -347,7 +409,9 @@ function describe(v: Vibe): string {
 
 /**
  * Ranks the collection against the answers. Everything is a soft preference
- * except the style family, which filters (and is dropped if nothing matches).
+ * except the style family and records too short for the time asked, which
+ * filter (each dropped if nothing is left). Outside the holiday season,
+ * Christmas records are left out too.
  */
 export function rankRecords(
   records: CollectionRecord[],
@@ -356,8 +420,18 @@ export function rankRecords(
   now = Date.now(),
 ): Candidate[] {
   const family = FAMILIES.find((f) => f.id === answers.family)
-  let pool = family ? records.filter(family.test) : records
-  if (!pool.length) pool = records
+  let pool = inSeason(records, new Date(now))
+  if (family) {
+    const matching = pool.filter(family.test)
+    if (matching.length) pool = matching
+  }
+  // Asking for an hour means at least an hour: drop what's known to be too
+  // short. Records of unknown length stay, ranked below those that fit.
+  if (answers.length) {
+    const length = answers.length
+    const longEnough = pool.filter((r) => lengthFit(r, length) !== 'short')
+    if (longEnough.length) pool = longEnough
+  }
 
   let target: Vibe | null = answers.mood
     ? { ...MOODS[answers.mood].target }
@@ -396,15 +470,13 @@ export function rankRecords(
       }
 
       if (answers.length) {
-        const spec = LENGTHS[answers.length]
-        const sec = record.durationSec
-        if (sec) {
-          const fits =
-            ('maxSec' in spec ? sec <= spec.maxSec : true) &&
-            ('minSec' in spec ? sec >= spec.minSec : true)
-          score += fits ? 0.15 : -0.25
-          if (fits) reasons.push(`${Math.round(sec / 60)} minutes long`)
-        }
+        const fit = lengthFit(record, answers.length)
+        if (fit === 'fits') {
+          score += 0.15
+          // Only a real runtime is worth quoting.
+          if (record.durationSec)
+            reasons.push(`${Math.round(record.durationSec / 60)} minutes long`)
+        } else if (fit) score -= 0.25
       }
 
       const p = plays.get(record.releaseId)
@@ -453,7 +525,7 @@ export function randomPick(
   exclude: Set<number>,
   now = Date.now(),
 ) {
-  const fresh = records.filter((r) => {
+  const fresh = inSeason(records, new Date(now)).filter((r) => {
     if (exclude.has(r.instanceId)) return false
     const last = plays.get(r.releaseId)?.lastPlayedAt
     return !last || now - new Date(last).getTime() > 3 * DAY

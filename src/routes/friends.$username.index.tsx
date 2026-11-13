@@ -197,6 +197,7 @@ function HeadToHead({
     const l = S.listening(p.records, p.plays, 1)
     return {
       s,
+      hidden: p.listeningHidden,
       spins: l.total,
       played: Math.round(l.playedShare * 100),
       topGenre: S.genres(p.records)[0]?.name ?? '—',
@@ -242,15 +243,15 @@ function HeadToHead({
     },
     {
       label: 'Spins logged',
-      mine: a.spins,
-      theirs: b.spins,
-      cmp: [a.spins, b.spins],
+      mine: a.hidden ? 'Private' : a.spins,
+      theirs: b.hidden ? 'Private' : b.spins,
+      cmp: a.hidden || b.hidden ? undefined : [a.spins, b.spins],
     },
     {
       label: 'Share ever spun',
-      mine: `${a.played}%`,
-      theirs: `${b.played}%`,
-      cmp: [a.played, b.played],
+      mine: a.hidden ? 'Private' : `${a.played}%`,
+      theirs: b.hidden ? 'Private' : `${b.played}%`,
+      cmp: a.hidden || b.hidden ? undefined : [a.played, b.played],
     },
     {
       label: 'Median year',
@@ -263,8 +264,8 @@ function HeadToHead({
     { label: 'Top label', mine: a.topLabel, theirs: b.topLabel },
     {
       label: 'Most spun',
-      mine: a.mostPlayed?.title ?? '—',
-      theirs: b.mostPlayed?.title ?? '—',
+      mine: a.hidden ? 'Private' : (a.mostPlayed?.title ?? '—'),
+      theirs: b.hidden ? 'Private' : (b.mostPlayed?.title ?? '—'),
     },
   ]
   return (

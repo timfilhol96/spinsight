@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Disc3, History, Square } from 'lucide-react'
+import { Check, Disc3, History, Square } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '#/components/ui/button'
 import {
@@ -11,11 +11,14 @@ import {
 } from '#/components/ui/dropdown-menu'
 import { Input } from '#/components/ui/input'
 import { deletePlay, logPlay, stopPlay } from '#/lib/collection.functions'
+import { likelyRuntimeSec } from '#/lib/moods'
 import type { PickAnswers } from '#/lib/moods'
 import { nowPlayingQuery } from '#/lib/queries'
 import { DEFAULT_RUNTIME_SEC } from '#/lib/records'
 import type { CollectionRecord } from '#/lib/records'
 import { cn } from '#/lib/utils'
+
+type PickContext = PickAnswers & { mode?: 'guided' | 'random' | 'friends' }
 
 /**
  * Logs a spin and puts the record on the now-playing dock. If this record is
@@ -31,7 +34,7 @@ export function PlayButton({
 }: {
   record: CollectionRecord
   source?: 'manual' | 'picker'
-  context?: PickAnswers & { mode?: 'guided' | 'random' | 'friends' }
+  context?: PickContext
   onLogged?: () => void
   className?: string
   size?: 'default' | 'lg'
@@ -123,34 +126,28 @@ function localInputValue(ms: number) {
 }
 
 /**
- * Logs a listen after the fact, for when the record wasn't logged while it
- * played. It's saved already finished, so it skips the now-playing dock.
+ * Logs a listen after the fact, saved already finished so it skips the
+ * now-playing dock. Toasts with an Undo; resolves to whether it was saved.
  */
-export function PastPlayButton({
-  record,
-  className,
-}: {
-  record: CollectionRecord
-  className?: string
-}) {
+function useLogPastPlay(record: CollectionRecord) {
   const qc = useQueryClient()
   const [pending, setPending] = useState(false)
-  const [picking, setPicking] = useState(false)
-  const runtimeMs = (record.durationSec ?? DEFAULT_RUNTIME_SEC) * 1000
-  const [when, setWhen] = useState('')
 
-  async function log(playedAt: number) {
+  async function log(
+    playedAt: number,
+    opts: { source?: 'manual' | 'picker'; context?: PickContext } = {},
+  ): Promise<boolean> {
     setPending(true)
     try {
       const { id } = await logPlay({
         data: {
           releaseId: record.releaseId,
-          source: 'manual',
+          source: opts.source ?? 'manual',
+          context: opts.context,
           playedAt: new Date(playedAt).toISOString(),
         },
       })
       await qc.invalidateQueries({ queryKey: ['profile'] })
-      setPicking(false)
       toast.success(`Logged a listen of ${record.title}.`, {
         action: {
           label: 'Undo',
@@ -160,11 +157,71 @@ export function PastPlayButton({
           },
         },
       })
+      return true
     } catch (e) {
       toast.error(`Couldn't log the listen: ${(e as Error).message}`)
+      return false
     } finally {
       setPending(false)
     }
+  }
+
+  return { log, pending }
+}
+
+/** When a record of this length that ended now would have started. */
+const startedAgo = (record: CollectionRecord) =>
+  Date.now() - (likelyRuntimeSec(record) ?? DEFAULT_RUNTIME_SEC) * 1000
+
+/**
+ * One tap to log a listen that just finished, without the now-playing dock.
+ * Used by the picker, where the record often went on before the tap.
+ */
+export function PlayedItButton({
+  record,
+  context,
+  size = 'default',
+  className,
+}: {
+  record: CollectionRecord
+  context?: PickContext
+  size?: 'default' | 'lg'
+  className?: string
+}) {
+  const { log, pending } = useLogPastPlay(record)
+  return (
+    <Button
+      variant="outline"
+      size={size}
+      disabled={pending}
+      onClick={() =>
+        void log(startedAgo(record), { source: 'picker', context })
+      }
+      className={className}
+    >
+      <Check className={pending ? 'animate-pulse' : ''} />
+      Played it
+    </Button>
+  )
+}
+
+/**
+ * Logs a listen after the fact, for when the record wasn't logged while it
+ * played: just now, or at a time picked.
+ */
+export function PastPlayButton({
+  record,
+  className,
+}: {
+  record: CollectionRecord
+  className?: string
+}) {
+  const { log: logPast, pending } = useLogPastPlay(record)
+  const [picking, setPicking] = useState(false)
+  const [when, setWhen] = useState('')
+
+  async function log(playedAt: number) {
+    if (await logPast(playedAt)) setPicking(false)
   }
 
   if (picking) {
@@ -215,12 +272,12 @@ export function PastPlayButton({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        <DropdownMenuItem onSelect={() => void log(Date.now() - runtimeMs)}>
+        <DropdownMenuItem onSelect={() => void log(startedAgo(record))}>
           Just finished it
         </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={() => {
-            setWhen(localInputValue(Date.now() - runtimeMs))
+            setWhen(localInputValue(startedAgo(record)))
             setPicking(true)
           }}
         >

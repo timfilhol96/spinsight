@@ -45,13 +45,14 @@ function JointYearPage() {
 
   const myName = me.displayName?.split(' ')[0] || me.username
   const theirName = them.displayName?.split(' ')[0] || them.username
-  // Who "won" the year: more records added, spins breaking ties.
+  // Who "won" the year: records added plus spins. Spins only count when
+  // both sides share their listening.
+  const private_ = me.listeningHidden || them.listeningHidden
+  const busy = (s: typeof y.mine) => s.added.length + (private_ ? 0 : s.spins)
   const lead =
-    y.mine.added.length + y.mine.spins ===
-    y.theirs.added.length + y.theirs.spins
+    busy(y.mine) === busy(y.theirs)
       ? null
-      : y.mine.added.length + y.mine.spins >
-          y.theirs.added.length + y.theirs.spins
+      : busy(y.mine) > busy(y.theirs)
         ? myName
         : theirName
   const cover = y.boughtBoth[0] ?? y.mine.mostSpun?.record ?? null
@@ -114,8 +115,16 @@ function JointYearPage() {
               {year}
             </p>
             <div className="mt-auto grid max-w-[58%] grid-cols-2 gap-x-5 gap-y-4">
-              <Side name={myName} side={y.mine} />
-              <Side name={theirName} side={y.theirs} />
+              <Side
+                name={myName}
+                side={y.mine}
+                listeningHidden={me.listeningHidden}
+              />
+              <Side
+                name={theirName}
+                side={y.theirs}
+                listeningHidden={them.listeningHidden}
+              />
             </div>
           </div>
         </div>
@@ -137,12 +146,14 @@ function JointYearPage() {
               record={y.mine.mostSpun?.record ?? null}
               count={y.mine.mostSpun?.count}
               owner={me.username}
+              listeningHidden={me.listeningHidden}
             />
             <Moment
               label={`${theirName}'s most spun`}
               record={y.theirs.mostSpun?.record ?? null}
               count={y.theirs.mostSpun?.count}
               owner={them.username}
+              listeningHidden={them.listeningHidden}
             />
           </div>
           {y.sharedArtists.length > 0 && (
@@ -197,9 +208,12 @@ function JointYearPage() {
 function Side({
   name,
   side,
+  listeningHidden,
 }: {
   name: string
   side: ReturnType<typeof jointYear>['mine']
+  /** Their listening is private: say so instead of "0×". */
+  listeningHidden: boolean
 }) {
   return (
     <dl className="min-w-0 space-y-3">
@@ -216,12 +230,18 @@ function Side({
           Spun
         </dt>
         <dd className="truncate text-lg font-semibold">
-          {side.spins}×
-          {side.minutes > 0 && (
-            <span className="text-sm font-normal opacity-80">
-              {' '}
-              · {formatDuration(side.minutes * 60)}
-            </span>
+          {listeningHidden ? (
+            'Private'
+          ) : (
+            <>
+              {side.spins}×
+              {side.minutes > 0 && (
+                <span className="text-sm font-normal opacity-80">
+                  {' '}
+                  · {formatDuration(side.minutes * 60)}
+                </span>
+              )}
+            </>
           )}
         </dd>
       </div>
@@ -244,16 +264,19 @@ function Moment({
   record,
   count,
   owner,
+  listeningHidden,
 }: {
   label: string
   record: CollectionRecord | null
   count?: number
   owner: string
+  listeningHidden: boolean
 }) {
   if (!record)
     return (
       <div className="rounded-xl border border-dashed p-3 text-xs text-muted-foreground">
-        {label}: no spins logged
+        {label}:{' '}
+        {listeningHidden ? 'listening kept private' : 'no spins logged'}
       </div>
     )
   return (
