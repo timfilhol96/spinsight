@@ -3,6 +3,7 @@ import { REPO_URL } from '#/lib/site'
 
 const LINKS = [
   { to: '/about', label: 'How it works' },
+  { to: '/changelog', label: "What's new" },
   { to: '/privacy', label: 'Privacy' },
   { to: '/terms', label: 'Terms' },
   { to: '/trust', label: 'Trust & security' },

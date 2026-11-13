@@ -1,6 +1,16 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { LogOut, Moon, Shield, Sun, SunMoon, User, Users } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import {
+  LogOut,
+  Moon,
+  Shield,
+  Sparkles,
+  Sun,
+  SunMoon,
+  User,
+  Users,
+} from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '#/components/ui/avatar'
 import { Button } from '#/components/ui/button'
 import {
@@ -11,6 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
+import { changesSeen, onChangesSeen } from '#/lib/changelog'
 import { viewerQuery } from '#/lib/queries'
 import { useColorScheme } from '#/lib/theme'
 import type { ColorScheme } from '#/lib/theme'
@@ -37,8 +48,22 @@ function SchemeToggle() {
   )
 }
 
+/**
+ * Whether there's an entry in What's new this browser hasn't seen. Read after
+ * mounting, since the server can't know.
+ */
+function useUnseenChanges() {
+  const [unseen, setUnseen] = useState(false)
+  useEffect(() => {
+    setUnseen(!changesSeen())
+    return onChangesSeen(() => setUnseen(false))
+  }, [])
+  return unseen
+}
+
 export function SiteHeader() {
   const { data: viewer } = useQuery(viewerQuery)
+  const unseen = useUnseenChanges()
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-md">
@@ -114,8 +139,10 @@ export function SiteHeader() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="rounded-full"
-                  aria-label="Account menu"
+                  className="relative rounded-full"
+                  aria-label={
+                    unseen ? "Account menu (what's new)" : 'Account menu'
+                  }
                 >
                   <Avatar className="size-8">
                     <AvatarImage src={viewer.avatarUrl ?? undefined} alt="" />
@@ -123,6 +150,12 @@ export function SiteHeader() {
                       {viewer.username.slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
+                  {unseen && (
+                    <span
+                      aria-hidden
+                      className="absolute top-0.5 right-0.5 size-2.5 rounded-full bg-record-1 ring-2 ring-background"
+                    />
+                  )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
@@ -146,6 +179,16 @@ export function SiteHeader() {
                 <DropdownMenuItem asChild>
                   <Link to="/friends">
                     <Users /> Friends
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/changelog">
+                    <Sparkles /> What's new
+                    {unseen && (
+                      <span className="ml-auto rounded-full bg-record-1 px-1.5 py-px text-[10px] font-semibold text-record-ink">
+                        New
+                      </span>
+                    )}
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
