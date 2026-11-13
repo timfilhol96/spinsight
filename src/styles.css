@@ -164,6 +164,19 @@ body {
   overflow-x: clip;
 }
 
+/* Menus, sheets and dialogs lock scrolling with overflow: hidden on body.
+   With the clip above, that makes body its own scroll box: the sticky header
+   (and a menu opened from it) jump to the top of the page, out of view, and
+   the page looks frozen. Lock the page on html instead, which stays the
+   scroller, so nothing moves. */
+html body[data-scroll-locked] {
+  overflow-x: clip !important;
+  overflow-y: visible !important;
+}
+html:has(> body[data-scroll-locked]) {
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   font-family: var(--font-sans);

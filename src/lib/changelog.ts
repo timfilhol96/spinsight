@@ -15,6 +15,13 @@ export type Release = {
 export const CHANGELOG: Release[] = [
   {
     date: '2026-11-13',
+    title: 'Fixes',
+    items: [
+      'Opening the account menu after scrolling down no longer hides the top bar and freezes the page.',
+    ],
+  },
+  {
+    date: '2026-11-13',
     title: 'A smarter picker and more listening stats',
     issue: 3,
     items: [
