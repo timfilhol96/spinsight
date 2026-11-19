@@ -1,5 +1,5 @@
 import { db } from '#/lib/supabase.server'
-import { DEFAULT_RUNTIME_SEC, playRuntimeSec } from '#/lib/records'
+import { DEFAULT_RUNTIME_SEC, playRuntimeSec, spinRuntime } from '#/lib/records'
 import type { NowPlaying, Reaction } from '#/lib/records'
 import { parseVinylLook, withDiscPhoto } from '#/lib/vinyl-color'
 import type { DiscPhoto, DiscogsFormat } from '#/lib/vinyl-color'
@@ -124,6 +124,7 @@ export async function nowPlayingFor(
     coverImage: item?.cover_url ?? rel.artwork_url ?? rel.cover_image,
     thumb: item?.cover_thumb ?? rel.artwork_thumb ?? rel.thumb,
     durationSec: runtimeSec,
+    albumOnly: spinRuntime(play.context).runtimeSec != null,
     startedAt: new Date(startedAt).toISOString(),
     endsAt: new Date(endsAt).toISOString(),
     along,

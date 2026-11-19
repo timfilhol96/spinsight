@@ -15,7 +15,7 @@ import { RecordRow } from '#/components/record-row'
 import { RecordSheet } from '#/components/record-sheet'
 import { VinylDisc } from '#/components/vinyl-disc'
 import type { CollectionSearch } from '#/routes/u.$username.index'
-import { formatDuration } from '#/lib/records'
+import { albumRuntimeSec, formatDuration } from '#/lib/records'
 import type { CollectionRecord } from '#/lib/records'
 import * as S from '#/lib/stats'
 import { useMoney, useProfile } from '#/lib/use-profile'
@@ -457,7 +457,10 @@ function InsightsPage() {
             <ExtremeCard
               label="Longest record"
               record={stats.durations.longest}
-              value={formatDuration(stats.durations.longest?.durationSec)}
+              value={formatDuration(
+                stats.durations.longest &&
+                  albumRuntimeSec(stats.durations.longest),
+              )}
               onOpen={open}
             />
           </div>

@@ -217,17 +217,21 @@ export function PlayedItButton({
  */
 export function PastPlayButton({
   record,
+  context,
   className,
 }: {
   record: CollectionRecord
+  /** `extras: 'skip'`: the original album alone was played. */
+  context?: PickContext
   className?: string
 }) {
   const { log: logPast, pending } = useLogPastPlay(record)
+  const ago = () => startedAgo(record, context?.extras)
   const [picking, setPicking] = useState(false)
   const [when, setWhen] = useState('')
 
   async function log(playedAt: number) {
-    if (await logPast(playedAt)) setPicking(false)
+    if (await logPast(playedAt, { context })) setPicking(false)
   }
 
   if (picking) {
@@ -278,12 +282,12 @@ export function PastPlayButton({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        <DropdownMenuItem onSelect={() => void log(startedAgo(record))}>
+        <DropdownMenuItem onSelect={() => void log(ago())}>
           Just finished it
         </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={() => {
-            setWhen(localInputValue(startedAgo(record)))
+            setWhen(localInputValue(ago()))
             setPicking(true)
           }}
         >

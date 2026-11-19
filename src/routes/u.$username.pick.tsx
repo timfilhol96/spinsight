@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
   Dices,
@@ -18,6 +18,7 @@ import {
 } from '#/components/play-button'
 import { VinylSwatch } from '#/components/record-card'
 import { RecordSheet } from '#/components/record-sheet'
+import { ExtrasToggle } from '#/components/extras-toggle'
 import { VinylDisc } from '#/components/vinyl-disc'
 import { Button } from '#/components/ui/button'
 import {
@@ -46,6 +47,7 @@ import { friendsQuery } from '#/lib/queries'
 import type { CollectionRecord } from '#/lib/records'
 import { formatDuration } from '#/lib/records'
 import { THEME_PRIORITY, useRecordTheme } from '#/lib/theme'
+import { useExtras } from '#/lib/use-extras'
 import { useProfile } from '#/lib/use-profile'
 import { cn } from '#/lib/utils'
 import { detectWeather } from '#/lib/weather'
@@ -65,37 +67,12 @@ type Stage =
 
 const STEPS = ['mood', 'weather', 'family', 'length'] as const
 
-// Whether special editions count as their original album alone: kept in
-// this browser, since someone who skips bonus tracks usually always does.
-const EXTRAS_KEY = 'spinsight:picker-extras'
-function savedExtras(): Extras {
-  try {
-    return localStorage.getItem(EXTRAS_KEY) === 'skip' ? 'skip' : undefined
-  } catch {
-    return undefined
-  }
-}
-function saveExtras(extras: Extras) {
-  try {
-    if (extras) localStorage.setItem(EXTRAS_KEY, extras)
-    else localStorage.removeItem(EXTRAS_KEY)
-  } catch {
-    // Storage blocked: the choice lasts until the page is left.
-  }
-}
-
 function PickPage() {
   const profile = useProfile()
   const records = profile.records
   const [stage, setStage] = useState<Stage>({ kind: 'start' })
   const [answers, setAnswers] = useState<PickAnswers>({})
-  // Read after mount: there's no localStorage during server rendering.
-  const [extras, setExtrasState] = useState<Extras>(undefined)
-  useEffect(() => setExtrasState(savedExtras()), [])
-  const setExtras = (next: Extras) => {
-    setExtrasState(next)
-    saveExtras(next)
-  }
+  const [extras, setExtras] = useExtras()
   const editions = useMemo(
     () => records.filter((r) => r.bonusTracks > 0).length,
     [records],
@@ -619,45 +596,6 @@ function Questions({
           onClick={() => onAnswer(key, undefined, step)}
         />
       </div>
-    </div>
-  )
-}
-
-/** Whole record, or the original album without the bonus tracks. */
-function ExtrasToggle({
-  extras,
-  onChange,
-}: {
-  extras: Extras
-  onChange: (extras: Extras) => void
-}) {
-  const options: Array<{ value: Extras; label: string }> = [
-    { value: undefined, label: 'With bonus tracks' },
-    { value: 'skip', label: 'Original album only' },
-  ]
-  return (
-    <div
-      role="radiogroup"
-      aria-label="Bonus tracks"
-      className="inline-flex rounded-lg border bg-card p-0.5 text-sm"
-    >
-      {options.map((o) => (
-        <button
-          key={o.label}
-          type="button"
-          role="radio"
-          aria-checked={extras === o.value}
-          onClick={() => onChange(o.value)}
-          className={cn(
-            'rounded-md px-3 py-1.5 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
-            extras === o.value
-              ? 'bg-record-1 text-record-ink'
-              : 'text-muted-foreground hover:text-foreground',
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
     </div>
   )
 }

@@ -19,8 +19,9 @@ export const CHANGELOG: Release[] = [
     items: [
       'Special editions with bonus tracks, demos, live takes or instrumentals now show two lengths: the original album, and the whole record with the extras.',
       'The tracklist sets the bonus tracks apart, in the record details and while you follow along.',
-      'The picker can time special editions as just the original album. Choose “Original album only” on the time question or on the pick itself, and the picker remembers it.',
-      'A spin of the original album alone leaves Now playing when the album ends, and only that time counts as listening.',
+      'Choose “Original album only” to leave the bonus tracks out. It’s on the picker’s time question, on the pick itself and next to “I’m playing this” in a special edition’s details, and Spinsight remembers it.',
+      'A spin of the original album alone leaves Now playing when the album ends, the listening room follows just the album, and only that time counts as listening.',
+      'Hours of music, Longest record, Year in Vinyl and friend comparisons count each album as released, without its bonus tracks.',
     ],
   },
   {

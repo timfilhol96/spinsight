@@ -159,6 +159,7 @@ function LiveSpin({
       plays={profile.plays}
       startedAt={Date.parse(playing.startedAt)}
       now={now}
+      albumOnly={playing.albumOnly}
       onClose={onClose}
       onPlayNext={onPlayNext}
     />

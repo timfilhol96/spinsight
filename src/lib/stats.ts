@@ -2,7 +2,7 @@
 // the browser (collections are small enough, and friends' pages reuse them).
 import { convert } from '#/lib/currency'
 import type { Money, Rates } from '#/lib/currency'
-import { DEFAULT_RUNTIME_SEC } from '#/lib/records'
+import { DEFAULT_RUNTIME_SEC, albumRuntimeSec } from '#/lib/records'
 import type { CollectionRecord, Play } from '#/lib/records'
 import { isColoredVinyl } from '#/lib/vinyl-color'
 
@@ -61,7 +61,8 @@ export function summary(records: CollectionRecord[]) {
   const years = records
     .map((r) => r.originalYear)
     .filter((y): y is number => !!y)
-  const withDuration = records.filter((r) => r.durationSec)
+  // Albums as released: a deluxe's bonus tracks don't add to the hours.
+  const withDuration = records.filter((r) => albumRuntimeSec(r))
   return {
     records: records.length,
     artists: new Set(records.map((r) => r.artist)).size,
@@ -70,7 +71,7 @@ export function summary(records: CollectionRecord[]) {
     styles: new Set(records.flatMap((r) => r.styles)).size,
     /** Median year the music first came out. */
     medianYear: median(years),
-    totalSec: withDuration.reduce((s, r) => s + (r.durationSec ?? 0), 0),
+    totalSec: withDuration.reduce((s, r) => s + (albumRuntimeSec(r) ?? 0), 0),
     withDuration: withDuration.length,
     colored: records.filter((r) => isColoredVinyl(r.look)).length,
     enriched: records.filter((r) => r.enriched).length,
@@ -205,10 +206,11 @@ export function reissues(records: CollectionRecord[], minGap = 5) {
   return { count: list.length, biggestGap: list[0] ?? null }
 }
 
+/** Shortest and longest albums, bonus tracks left out (see `albumRuntimeSec`). */
 export function extremesByDuration(records: CollectionRecord[]) {
   const timed = records
-    .filter((r) => r.durationSec)
-    .sort((a, b) => (a.durationSec ?? 0) - (b.durationSec ?? 0))
+    .filter((r) => albumRuntimeSec(r))
+    .sort((a, b) => (albumRuntimeSec(a) ?? 0) - (albumRuntimeSec(b) ?? 0))
   return { shortest: timed[0] ?? null, longest: timed.at(-1) ?? null }
 }
 

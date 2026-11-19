@@ -11,6 +11,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '#/components/ui/sheet'
+import { ExtrasToggle } from '#/components/extras-toggle'
 import { VinylSwatch } from '#/components/record-card'
 import { VinylDisc } from '#/components/vinyl-disc'
 import { CoverPicker } from '#/components/cover-picker'
@@ -24,6 +25,7 @@ import {
   playSummary,
 } from '#/components/play-button'
 import { tracklistQuery } from '#/lib/queries'
+import { useExtras } from '#/lib/use-extras'
 import { useMoney, useProfile } from '#/lib/use-profile'
 import { formatDuration } from '#/lib/records'
 import type { CollectionRecord } from '#/lib/records'
@@ -60,6 +62,10 @@ function RecordDetail({ record }: { record: CollectionRecord }) {
       : null
   const duration = formatDuration(record.durationSec)
   const originalDuration = formatDuration(record.originalDurationSec)
+  // Spins of an edition follow the remembered "original album only" choice.
+  const [extras, setExtras] = useExtras()
+  const albumOnly = isOwner && record.bonusTracks > 0 && extras === 'skip'
+  const playContext = albumOnly ? { extras } : undefined
   const { data: tracklist, isPending: tracklistPending } = useQuery(
     tracklistQuery(record.releaseId),
   )
@@ -115,7 +121,7 @@ function RecordDetail({ record }: { record: CollectionRecord }) {
           )}
           {duration && (
             <span className="font-mono text-xs text-muted-foreground">
-              · {duration}
+              · {albumOnly ? (originalDuration ?? duration) : duration}
             </span>
           )}
         </div>
@@ -123,11 +129,14 @@ function RecordDetail({ record }: { record: CollectionRecord }) {
 
       {isOwner && (
         <div className="flex flex-wrap items-center gap-3">
-          <PlayButton record={record} />
-          <PastPlayButton record={record} />
+          <PlayButton record={record} context={playContext} />
+          <PastPlayButton record={record} context={playContext} />
           <span className="text-xs text-muted-foreground">
             {playSummary(record)}
           </span>
+          {record.bonusTracks > 0 && (
+            <ExtrasToggle extras={extras} onChange={setExtras} size="sm" />
+          )}
         </div>
       )}
 

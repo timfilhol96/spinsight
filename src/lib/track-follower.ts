@@ -48,7 +48,9 @@ const DEFAULT_RUNTIME_SEC = 45 * 60
  * Groups the tracklist into sides and times every track, track by track:
  * the Discogs time when it has one, else the streaming length found for that
  * position (matched by song title on the server), else an even share of
- * whatever runtime is left.
+ * whatever runtime is left. With `albumOnly`, a special edition's bonus
+ * tracks are left out (and `totalSec` should be the album's runtime); each
+ * track keeps its index in the whole tracklist.
  */
 export function buildSides(
   tracklist: Array<{
@@ -65,25 +67,25 @@ export function buildSides(
       lengths: Array<{ position: string; sec: number }>
       source: 'spotify' | 'itunes'
     } | null
+    albumOnly?: boolean
   } = {},
 ): Sides {
-  if (!tracklist.length) return { sides: [], timing: 'estimated', guessed: 0 }
-  const discogs = tracklist.map((t) =>
-    t.source ? 0 : trackSeconds(t.duration),
-  )
+  const all = tracklist.map((t, index) => ({ ...t, index }))
+  const album = opts.albumOnly ? all.filter((t) => !t.bonus) : all
+  const list = album.length ? album : all
+  if (!list.length) return { sides: [], timing: 'estimated', guessed: 0 }
+  const discogs = list.map((t) => (t.source ? 0 : trackSeconds(t.duration)))
   // Lengths the sync already saved, then the liner notes' (for records
   // synced before it did).
   const streamed = new Map(
     (opts.streaming?.lengths ?? []).map((l) => [l.position, l.sec]),
   )
-  for (const t of tracklist)
+  for (const t of list)
     if (t.source && trackSeconds(t.duration))
       streamed.set(t.position, trackSeconds(t.duration))
   const streamingSource =
-    tracklist.find((t) => t.source)?.source ?? opts.streaming?.source
-  const known = tracklist.map(
-    (t, i) => discogs[i] || streamed.get(t.position) || 0,
-  )
+    list.find((t) => t.source)?.source ?? opts.streaming?.source
+  const known = list.map((t, i) => discogs[i] || streamed.get(t.position) || 0)
   const guessed = known.filter((s) => !s).length
   const knownSum = known.reduce((a, b) => a + b, 0)
   const runtime = opts.totalSec || DEFAULT_RUNTIME_SEC
@@ -94,21 +96,21 @@ export function buildSides(
     : Math.round(
         runtime > knownSum
           ? (runtime - knownSum) / guessed
-          : knownSum / (tracklist.length - guessed),
+          : knownSum / (list.length - guessed),
       )
   const lengths = known.map((s) => s || share)
-  const usedStreaming = tracklist.some(
+  const usedStreaming = list.some(
     (t, i) => !discogs[i] && streamed.has(t.position),
   )
   const timing: TimingSource =
-    guessed === tracklist.length
+    guessed === list.length
       ? 'estimated'
       : usedStreaming && streamingSource
         ? streamingSource
         : 'discogs'
 
   const sides: Side[] = []
-  tracklist.forEach((t, index) => {
+  list.forEach((t, i) => {
     // Unlettered positions ("1", "2") all go on one side.
     const name = sideLetter(t.position) ?? sides.at(-1)?.name ?? 'A'
     let side = sides.at(-1)
@@ -120,11 +122,11 @@ export function buildSides(
       position: t.position,
       title: t.title,
       start: side.length,
-      sec: lengths[index],
-      index,
+      sec: lengths[i],
+      index: t.index,
       ...(t.bonus ? { bonus: true as const } : {}),
     })
-    side.length += lengths[index]
+    side.length += lengths[i]
   })
   return { sides, timing, guessed }
 }

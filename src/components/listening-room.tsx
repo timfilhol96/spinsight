@@ -28,7 +28,7 @@ import type {
   WikiPage,
 } from '#/lib/liner-notes'
 import { tracklistQuery } from '#/lib/queries'
-import { formatDuration } from '#/lib/records'
+import { albumRuntimeSec, formatDuration } from '#/lib/records'
 import type { CollectionRecord, Play } from '#/lib/records'
 import { shelfFacts } from '#/lib/shelf-facts'
 import type { ShelfFacts } from '#/lib/shelf-facts'
@@ -61,6 +61,8 @@ type Props = {
   now: number
   /** Shown as a badge: this spin isn't logged anywhere. */
   practice?: boolean
+  /** The spin is the original album alone: the bonus tracks aren't followed. */
+  albumOnly?: boolean
   onClose: () => void
   onPlayNext?: (record: CollectionRecord) => void
 }
@@ -77,6 +79,7 @@ export function ListeningRoom({
   startedAt,
   now,
   practice,
+  albumOnly = false,
   onClose,
   onPlayNext,
 }: Props) {
@@ -98,13 +101,15 @@ export function ListeningRoom({
   })
   const notes = fresh.data ? fresh : cached
   const tracklist = useQuery(tracklistQuery(record.releaseId))
+  const runtimeSec = albumOnly ? albumRuntimeSec(record) : record.durationSec
   const { sides, timing, guessed } = useMemo(
     () =>
       buildSides(tracklist.data ?? [], {
-        totalSec: record.durationSec,
+        totalSec: runtimeSec,
         streaming: notes.data?.streaming,
+        albumOnly,
       }),
-    [tracklist.data, record.durationSec, notes.data?.streaming],
+    [tracklist.data, runtimeSec, notes.data?.streaming, albumOnly],
   )
   const follower = useFollower(sides, startedAt, now)
   const shelf = useMemo(
@@ -151,8 +156,9 @@ export function ListeningRoom({
     ...trackFactsQuery(playing),
     enabled: !!playing && !notes.isPending,
   })
+  const allTracks = follower.sides.flatMap((side) => side.tracks)
   const nextTrack = playing
-    ? follower.sides.flatMap((side) => side.tracks)[playing.index + 1]
+    ? allTracks[allTracks.indexOf(playing) + 1]
     : undefined
   useEffect(() => {
     if (nextTrack && !notes.isPending)
@@ -224,7 +230,11 @@ export function ListeningRoom({
             </h1>
             <p className="text-lg text-muted-foreground">{record.artist}</p>
             <p className="mt-1 font-mono text-xs text-muted-foreground">
-              {[record.originalYear, formatDuration(record.durationSec)]
+              {[
+                record.originalYear,
+                formatDuration(runtimeSec),
+                albumOnly && record.bonusTracks > 0 ? 'original album' : null,
+              ]
                 .filter(Boolean)
                 .join(' · ')}
             </p>

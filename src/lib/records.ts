@@ -228,6 +228,14 @@ export type Profile = {
   records: CollectionRecord[]
 }
 
+/**
+ * The album's own runtime: a special edition's bonus tracks left out when
+ * they're known, else the whole record. What collection stats go by.
+ */
+export const albumRuntimeSec = (
+  r: Pick<CollectionRecord, 'durationSec' | 'originalDurationSec'>,
+): number | null => r.originalDurationSec ?? r.durationSec
+
 export function formatDuration(sec: number | null | undefined): string | null {
   if (!sec) return null
   const h = Math.floor(sec / 3600)
@@ -259,8 +267,13 @@ export type NowPlaying = {
   look: VinylLook
   coverImage: string | null
   thumb: string | null
-  /** Real runtime if known; the player assumes ~45 min otherwise. */
+  /**
+   * This spin's runtime if known (the original album's, with `albumOnly`);
+   * the player assumes ~45 min otherwise.
+   */
   durationSec: number | null
+  /** The original album alone, without the edition's bonus tracks. */
+  albumOnly: boolean
   startedAt: string
   /** After this it's no longer "now playing" (runtime + grace). */
   endsAt: string
