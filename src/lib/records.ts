@@ -10,8 +10,8 @@ import { trackSeconds } from '#/lib/track-follower'
  * v5: each track Discogs has no time for gets its streaming length.
  * v6: song titles match across "Part 1" / "Pt. 1"; only records still
  * missing a track time are re-fetched for it (see TRACK_TIMES_VERSION).
- * v7: bonus tracks on special editions are marked, for the original
- * album's runtime; only editions are re-fetched for it (see BONUS_VERSION).
+ * v7: bonus tracks are marked, for the original album's runtime; only
+ * records that may have some are re-fetched for it (see BONUS_VERSION).
  */
 export const DETAILS_VERSION = 7
 
@@ -32,15 +32,25 @@ export const TRACK_TIMES_VERSION = 5
  */
 export function detailsOutdated(
   version: number,
-  tracklist: Array<{ duration?: string }> | null,
+  tracklist: Array<{ duration?: string; title?: string }> | null,
   isSpecialEdition: boolean | null = false,
 ): boolean {
   if (version < TRACK_TIMES_VERSION) return true
   if (version < 6 && (tracklist ?? []).some((t) => !trackSeconds(t.duration)))
     return true
-  // Other records get their bonus tracks marked on the monthly refresh.
-  return version < BONUS_VERSION && !!isSpecialEdition
+  // Editions, and records with a track named as another take or a bonus
+  // (an unlabelled deluxe with live sides). The rest get theirs marked on
+  // the monthly refresh.
+  return (
+    version < BONUS_VERSION &&
+    (!!isSpecialEdition ||
+      (tracklist ?? []).some((t) => EXTRA_TAG.test(t.title ?? '')))
+  )
 }
+
+/** "(Live)", "[Demo]", "- Instrumental", "(Bonus Track)": maybe not the album take. */
+const EXTRA_TAG =
+  /[([][^)\]]*\b(live|demo|instrumental|acoustic|remix|alternate|bonus|outtake|rehearsal|early version|rough mix)\b[^)\]]*[)\]]|\s-\s.*\b(live|demo|instrumental|acoustic|remix|alternate|bonus)\b/i
 
 /**
  * The original album's runtime, leaving out the tracks marked as bonus.
