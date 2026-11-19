@@ -10,8 +10,13 @@ import { trackSeconds } from '#/lib/track-follower'
  * v5: each track Discogs has no time for gets its streaming length.
  * v6: song titles match across "Part 1" / "Pt. 1"; only records still
  * missing a track time are re-fetched for it (see TRACK_TIMES_VERSION).
+ * v7: bonus tracks on special editions are marked, for the original
+ * album's runtime; only editions are re-fetched for it (see BONUS_VERSION).
  */
-export const DETAILS_VERSION = 6
+export const DETAILS_VERSION = 7
+
+/** The version that started marking bonus tracks. */
+const BONUS_VERSION = 7
 
 /**
  * The last version that changed every record. Versions after it only
@@ -28,12 +33,29 @@ export const TRACK_TIMES_VERSION = 5
 export function detailsOutdated(
   version: number,
   tracklist: Array<{ duration?: string }> | null,
+  isSpecialEdition: boolean | null = false,
 ): boolean {
   if (version < TRACK_TIMES_VERSION) return true
-  return (
-    version < DETAILS_VERSION &&
-    (tracklist ?? []).some((t) => !trackSeconds(t.duration))
-  )
+  if (version < 6 && (tracklist ?? []).some((t) => !trackSeconds(t.duration)))
+    return true
+  // Other records get their bonus tracks marked on the monthly refresh.
+  return version < BONUS_VERSION && !!isSpecialEdition
+}
+
+/**
+ * The original album's runtime, leaving out the tracks marked as bonus.
+ * Null when nothing is marked, or when a track of the album has no time.
+ */
+export function originalRuntimeSec(
+  tracklist: Array<{ duration?: string; bonus?: true }> | null,
+): number | null {
+  const tracks = tracklist ?? []
+  if (!tracks.some((t) => t.bonus)) return null
+  const album = tracks.filter((t) => !t.bonus)
+  const secs = album.map((t) => trackSeconds(t.duration))
+  return album.length && secs.every((n) => n > 0)
+    ? secs.reduce((a, b) => a + b, 0)
+    : null
 }
 
 /** "LP", '7"', '12"': the size Discogs lists among the format descriptions. */
@@ -43,6 +65,21 @@ export const discSize = (r: { formatDescriptions: string[] }) =>
 /** Runtime assumed when a record's length is unknown (a typical LP). */
 export const DEFAULT_RUNTIME_SEC = 45 * 60
 
+/**
+ * The runtime a play saved in its context: set when it was the original
+ * album alone, without the edition's bonus tracks (see `logPlay`).
+ */
+export function spinRuntime(context: unknown): { runtimeSec?: number } {
+  const sec = (context as { runtimeSec?: unknown } | null)?.runtimeSec
+  return typeof sec === 'number' && sec > 0 ? { runtimeSec: sec } : {}
+}
+
+/** How long a play runs: its own runtime if it saved one, else the record's. */
+export const playRuntimeSec = (
+  context: unknown,
+  durationSec: number | null,
+): number | null => spinRuntime(context).runtimeSec ?? durationSec
+
 export type Play = {
   id: string
   releaseId: number
@@ -50,6 +87,11 @@ export type Play = {
   /** "Done" pressed, or the next record started. Null while it may still spin. */
   endedAt: string | null
   source: 'manual' | 'picker'
+  /**
+   * Set when the spin was the original album alone, without the edition's
+   * bonus tracks: its runtime. Otherwise the record's runtime applies.
+   */
+  runtimeSec?: number
 }
 
 export type Viewer = {
@@ -68,6 +110,11 @@ export type Track = {
   duration: string
   /** Set when `duration` came from streaming rather than Discogs. */
   source?: 'spotify' | 'itunes'
+  /**
+   * Not on the original album: a special edition's bonus track, demo, live
+   * take or instrumental.
+   */
+  bonus?: true
 }
 
 /**
@@ -118,9 +165,20 @@ export type CollectionRecord = {
   /** What the owner paid, as they typed it in. Only sent to the owner. */
   pricePaid: Money | null
   numForSale: number | null
+  /** The whole record, bonus tracks included. */
   durationSec: number | null
   /** 'discogs' (tracklist) or the streaming service the runtime came from. */
   durationSource: 'discogs' | 'spotify' | 'itunes' | null
+  /**
+   * Tracks beyond the original album (a special edition's bonus tracks,
+   * demos, live takes, instrumentals). 0 for most records.
+   */
+  bonusTracks: number
+  /**
+   * The original album alone, when there are bonus tracks. Null when there
+   * are none, or a track time is missing.
+   */
+  originalDurationSec: number | null
   /** Has community stats etc. (possibly from an older enrichment version). */
   enriched: boolean
   /** Missing details, or fetched before the current DETAILS_VERSION. */

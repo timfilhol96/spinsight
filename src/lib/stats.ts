@@ -501,16 +501,17 @@ const daypart = (h: number) =>
   h >= 5 && h < 12 ? 0 : h < 17 ? 1 : h < 22 ? 2 : 3
 
 /**
- * How long a spin lasted: the record's runtime, cut short when "Done" was
- * pressed (or the next record started) before the end. Runtime unknown =
- * a typical LP; `estimated` says so.
+ * How long a spin lasted: the record's runtime (or the original album's,
+ * when that was all the spin was for), cut short when "Done" was pressed
+ * (or the next record started) before the end. Runtime unknown = a typical
+ * LP; `estimated` says so.
  */
 export function listenedSec(
   play: Play,
   record: CollectionRecord | undefined,
   now = Date.now(),
 ): { sec: number; estimated: boolean } {
-  const known = record?.durationSec ?? null
+  const known = play.runtimeSec ?? record?.durationSec ?? null
   const runtime = known ?? DEFAULT_RUNTIME_SEC
   const start = new Date(play.playedAt).getTime()
   const end = play.endedAt ? new Date(play.endedAt).getTime() : now

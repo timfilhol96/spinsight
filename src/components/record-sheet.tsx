@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { Fragment } from 'react'
 import { ExternalLink, Heart, Tag, Users } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { Skeleton } from '#/components/ui/skeleton'
@@ -27,6 +28,7 @@ import { useMoney, useProfile } from '#/lib/use-profile'
 import { formatDuration } from '#/lib/records'
 import type { CollectionRecord } from '#/lib/records'
 import { THEME_PRIORITY, useRecordTheme } from '#/lib/theme'
+import { cn } from '#/lib/utils'
 
 function Stat({
   icon: Icon,
@@ -57,6 +59,7 @@ function RecordDetail({ record }: { record: CollectionRecord }) {
       ? (record.communityWant / record.communityHave).toFixed(2)
       : null
   const duration = formatDuration(record.durationSec)
+  const originalDuration = formatDuration(record.originalDurationSec)
   const { data: tracklist, isPending: tracklistPending } = useQuery(
     tracklistQuery(record.releaseId),
   )
@@ -220,14 +223,26 @@ function RecordDetail({ record }: { record: CollectionRecord }) {
         <div>
           <p className="kicker mb-1">Length</p>
           {duration ? (
-            <p className="text-sm">
-              {duration}
-              <span className="ml-1.5 text-xs text-muted-foreground">
-                {record.durationSource === 'discogs'
-                  ? 'from the tracklist'
-                  : `digital album length (${record.durationSource === 'itunes' ? 'Apple Music' : 'Spotify'})`}
-              </span>
-            </p>
+            <>
+              {originalDuration && (
+                <p className="text-sm">
+                  {originalDuration}
+                  <span className="ml-1.5 text-xs text-muted-foreground">
+                    original album
+                  </span>
+                </p>
+              )}
+              <p className="text-sm">
+                {duration}
+                <span className="ml-1.5 text-xs text-muted-foreground">
+                  {record.bonusTracks > 0 &&
+                    `with the ${record.bonusTracks} bonus ${record.bonusTracks === 1 ? 'track' : 'tracks'}, `}
+                  {record.durationSource === 'discogs'
+                    ? 'from the tracklist'
+                    : `digital album length (${record.durationSource === 'itunes' ? 'Apple Music' : 'Spotify'})`}
+                </span>
+              </p>
+            </>
           ) : (
             <p className="text-sm text-muted-foreground">
               Unknown: no track times on Discogs or streaming services.
@@ -263,23 +278,35 @@ function RecordDetail({ record }: { record: CollectionRecord }) {
             <p className="kicker mb-2">Tracklist</p>
             <ol className="space-y-1 text-sm">
               {tracklist.map((t, i) => (
-                <li key={`${t.position}-${i}`} className="flex gap-3">
-                  <span className="w-7 shrink-0 font-mono text-xs leading-5 text-muted-foreground">
-                    {t.position}
-                  </span>
-                  <span className="flex-1">{t.title}</span>
-                  <span
-                    className="font-mono text-xs leading-5 text-muted-foreground"
-                    title={
-                      t.source
-                        ? `Not on Discogs: length from ${t.source === 'itunes' ? 'Apple Music' : 'Spotify'}`
-                        : undefined
-                    }
+                <Fragment key={`${t.position}-${i}`}>
+                  {t.bonus && !tracklist[i - 1]?.bonus && (
+                    <li className="kicker pt-2 text-muted-foreground">
+                      Bonus tracks
+                    </li>
+                  )}
+                  <li
+                    className={cn(
+                      'flex gap-3',
+                      t.bonus && 'text-muted-foreground',
+                    )}
                   >
-                    {t.duration}
-                    {t.source && <span aria-hidden>*</span>}
-                  </span>
-                </li>
+                    <span className="w-7 shrink-0 font-mono text-xs leading-5 text-muted-foreground">
+                      {t.position}
+                    </span>
+                    <span className="flex-1">{t.title}</span>
+                    <span
+                      className="font-mono text-xs leading-5 text-muted-foreground"
+                      title={
+                        t.source
+                          ? `Not on Discogs: length from ${t.source === 'itunes' ? 'Apple Music' : 'Spotify'}`
+                          : undefined
+                      }
+                    >
+                      {t.duration}
+                      {t.source && <span aria-hidden>*</span>}
+                    </span>
+                  </li>
+                </Fragment>
               ))}
             </ol>
             {tracklist.some((t) => t.source) && (

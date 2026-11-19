@@ -84,6 +84,8 @@ export function demoProfile(): Profile {
       numForSale: 10 + ((i * 13) % 120),
       durationSec: a.durationSec,
       durationSource: 'itunes',
+      bonusTracks: 0,
+      originalDurationSec: null,
       enriched: true,
       needsDetails: false,
       spotifyGenres: [],

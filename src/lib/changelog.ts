@@ -14,6 +14,16 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    date: '2026-11-19',
+    title: 'Bonus tracks get a runtime of their own',
+    items: [
+      'Special editions with bonus tracks, demos, live takes or instrumentals now show two lengths: the original album, and the whole record with the extras.',
+      'The tracklist sets the bonus tracks apart, in the record details and while you follow along.',
+      'The picker can time special editions as just the original album. Choose “Original album only” on the time question or on the pick itself, and the picker remembers it.',
+      'A spin of the original album alone leaves Now playing when the album ends, and only that time counts as listening.',
+    ],
+  },
+  {
     date: '2026-11-13',
     title: 'Fixes',
     items: [

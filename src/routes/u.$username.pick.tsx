@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
   Dices,
@@ -24,14 +24,17 @@ import {
   LENGTHS,
   MOODS,
   WEATHERS,
+  albumOnly,
   availableFamilies,
   drawPick,
   randomPick,
   rankRecords,
+  runtimeFor,
   timeOfDay,
 } from '#/lib/moods'
 import type {
   Candidate,
+  Extras,
   Length,
   Mood,
   PickAnswers,
@@ -62,11 +65,41 @@ type Stage =
 
 const STEPS = ['mood', 'weather', 'family', 'length'] as const
 
+// Whether special editions count as their original album alone: kept in
+// this browser, since someone who skips bonus tracks usually always does.
+const EXTRAS_KEY = 'spinsight:picker-extras'
+function savedExtras(): Extras {
+  try {
+    return localStorage.getItem(EXTRAS_KEY) === 'skip' ? 'skip' : undefined
+  } catch {
+    return undefined
+  }
+}
+function saveExtras(extras: Extras) {
+  try {
+    if (extras) localStorage.setItem(EXTRAS_KEY, extras)
+    else localStorage.removeItem(EXTRAS_KEY)
+  } catch {
+    // Storage blocked: the choice lasts until the page is left.
+  }
+}
+
 function PickPage() {
   const profile = useProfile()
   const records = profile.records
   const [stage, setStage] = useState<Stage>({ kind: 'start' })
   const [answers, setAnswers] = useState<PickAnswers>({})
+  // Read after mount: there's no localStorage during server rendering.
+  const [extras, setExtrasState] = useState<Extras>(undefined)
+  useEffect(() => setExtrasState(savedExtras()), [])
+  const setExtras = (next: Extras) => {
+    setExtrasState(next)
+    saveExtras(next)
+  }
+  const editions = useMemo(
+    () => records.filter((r) => r.bonusTracks > 0).length,
+    [records],
+  )
   const [openId, setOpenId] = useState<number | null>(null)
   const shown = useRef(new Set<number>())
 
@@ -145,7 +178,7 @@ function PickPage() {
   }
 
   function pickGuided(final: PickAnswers) {
-    const withTime = { ...final, time: timeOfDay() }
+    const withTime = { ...final, extras, time: timeOfDay() }
     const ranked = rankRecords(records, withTime, plays)
     let pick = drawPick(ranked, shown.current)
     if (!pick) {
@@ -219,6 +252,9 @@ function PickPage() {
           step={stage.step}
           answers={answers}
           families={families}
+          editions={editions}
+          extras={extras}
+          onExtras={setExtras}
           onAnswer={answer}
           onBack={() =>
             setStage(
@@ -241,6 +277,22 @@ function PickPage() {
           pick={stage.pick}
           mode={stage.mode}
           answers={answers}
+          extras={extras}
+          onExtras={(next) => {
+            setExtras(next)
+            // The pick's reasons quote its runtime: redo them for the new one.
+            if (stage.mode !== 'guided') return
+            const [redone] = rankRecords(
+              [stage.pick.record],
+              { ...answers, extras: next, time: timeOfDay() },
+              plays,
+            )
+            if (redone)
+              setStage({
+                ...stage,
+                pick: { ...stage.pick, reasons: redone.reasons },
+              })
+          }}
           canPlay={profile.isOwner}
           onAgain={again}
           onRestart={() => setStage({ kind: 'start' })}
@@ -388,12 +440,19 @@ function Questions({
   step,
   answers,
   families,
+  editions,
+  extras,
+  onExtras,
   onAnswer,
   onBack,
 }: {
   step: number
   answers: PickAnswers
   families: Array<{ id: string; label: string; count: number }>
+  /** Records with bonus tracks in the collection. */
+  editions: number
+  extras: Extras
+  onExtras: (extras: Extras) => void
   onAnswer: <TKey extends keyof PickAnswers>(
     key: TKey,
     value: PickAnswers[TKey],
@@ -531,6 +590,18 @@ function Questions({
             />
           ))}
 
+        {key === 'length' && editions > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed p-4 sm:col-span-2">
+            <p className="text-sm text-muted-foreground">
+              {editions === 1
+                ? '1 record has bonus tracks.'
+                : `${editions} records have bonus tracks.`}{' '}
+              Time them with or without?
+            </p>
+            <ExtrasToggle extras={extras} onChange={onExtras} />
+          </div>
+        )}
+
         {key === 'length' &&
           (Object.keys(LENGTHS) as Length[]).map((l) => (
             <Option
@@ -552,10 +623,51 @@ function Questions({
   )
 }
 
+/** Whole record, or the original album without the bonus tracks. */
+function ExtrasToggle({
+  extras,
+  onChange,
+}: {
+  extras: Extras
+  onChange: (extras: Extras) => void
+}) {
+  const options: Array<{ value: Extras; label: string }> = [
+    { value: undefined, label: 'With bonus tracks' },
+    { value: 'skip', label: 'Original album only' },
+  ]
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Bonus tracks"
+      className="inline-flex rounded-lg border bg-card p-0.5 text-sm"
+    >
+      {options.map((o) => (
+        <button
+          key={o.label}
+          type="button"
+          role="radio"
+          aria-checked={extras === o.value}
+          onClick={() => onChange(o.value)}
+          className={cn(
+            'rounded-md px-3 py-1.5 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+            extras === o.value
+              ? 'bg-record-1 text-record-ink'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function Result({
   pick,
   mode,
   answers,
+  extras,
+  onExtras,
   canPlay,
   onAgain,
   onRestart,
@@ -564,6 +676,8 @@ function Result({
   pick: Candidate
   mode: 'guided' | 'random' | 'friends'
   answers: PickAnswers
+  extras: Extras
+  onExtras: (extras: Extras) => void
   canPlay: boolean
   onAgain: () => void
   onRestart: () => void
@@ -571,8 +685,12 @@ function Result({
 }) {
   const r: CollectionRecord = pick.record
   useRecordTheme(r.look, THEME_PRIORITY.focus, r.coverImage)
-  const duration = formatDuration(r.durationSec)
-  const context = mode === 'guided' ? { ...answers, mode } : { mode }
+  const skipping = albumOnly(r, extras)
+  const duration = formatDuration(runtimeFor(r, extras))
+  const context =
+    mode === 'guided'
+      ? { ...answers, extras: skipping ? extras : undefined, mode }
+      : { extras: skipping ? extras : undefined, mode }
 
   return (
     // Keyed so each new pick replays the slide-out animation.
@@ -611,7 +729,15 @@ function Result({
         <p className="mt-1 text-xl text-muted-foreground">{r.artist}</p>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           {r.originalYear && <span className="sticker">{r.originalYear}</span>}
-          {duration && <span>{duration}</span>}
+          {duration && (
+            <span>
+              {duration}
+              {r.bonusTracks > 0 &&
+                (skipping
+                  ? ' · original album'
+                  : ` · with ${r.bonusTracks} bonus ${r.bonusTracks === 1 ? 'track' : 'tracks'}`)}
+            </span>
+          )}
           {r.look.label && (
             <span className="flex items-center gap-1.5">
               <VinylSwatch colors={r.look.colors} /> {r.look.label}
@@ -630,6 +756,12 @@ function Result({
               </li>
             ))}
           </ul>
+        )}
+
+        {r.bonusTracks > 0 && (
+          <div className="mt-5">
+            <ExtrasToggle extras={extras} onChange={onExtras} />
+          </div>
         )}
 
         <div className="mt-8 flex flex-wrap items-center gap-2">

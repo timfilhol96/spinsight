@@ -557,6 +557,11 @@ function TrackList({
                         {isNow ? <Equalizer /> : t.position}
                       </span>
                       <span className="min-w-0 flex-1 truncate">{t.title}</span>
+                      {t.bonus && (
+                        <span className="text-[10px] tracking-wide text-muted-foreground uppercase">
+                          Bonus
+                        </span>
+                      )}
                       <span className="font-mono text-xs text-muted-foreground tabular-nums">
                         {mmss(t.sec)}
                       </span>

@@ -248,10 +248,29 @@ export const LENGTHS = {
 export type Length = keyof typeof LENGTHS
 
 /**
- * The record's runtime, or a rough one from its format when no track times
- * are known: singles and EPs are short whatever they are. Null = no idea.
+ * Whether to play a special edition's bonus tracks (demos, live takes…) or
+ * stop at the end of the original album. Undefined = the whole record.
  */
-export function likelyRuntimeSec(r: CollectionRecord): number | null {
+export type Extras = 'skip' | undefined
+
+/** Only the original album is wanted, and this record has more than that. */
+export const albumOnly = (r: CollectionRecord, extras: Extras) =>
+  extras === 'skip' && r.bonusTracks > 0
+
+/** The runtime to go by: the original album's when that's all that's wanted. */
+export const runtimeFor = (r: CollectionRecord, extras: Extras) =>
+  albumOnly(r, extras) ? r.originalDurationSec : r.durationSec
+
+/**
+ * The record's runtime, or a rough one from its format when no track times
+ * are known: singles and EPs are short whatever they are. Null = no idea
+ * (also when only the original album is wanted and its length is unknown).
+ */
+export function likelyRuntimeSec(
+  r: CollectionRecord,
+  extras?: Extras,
+): number | null {
+  if (albumOnly(r, extras)) return r.originalDurationSec
   if (r.durationSec) return r.durationSec
   const d = r.formatDescriptions
   if (d.includes('LP')) return null
@@ -265,8 +284,9 @@ export function likelyRuntimeSec(r: CollectionRecord): number | null {
 export function lengthFit(
   r: CollectionRecord,
   length: Length,
+  extras?: Extras,
 ): 'short' | 'fits' | 'long' | null {
-  const sec = likelyRuntimeSec(r)
+  const sec = likelyRuntimeSec(r, extras)
   if (!sec) return null
   const spec = LENGTHS[length]
   return sec < spec.minSec ? 'short' : sec > spec.maxSec ? 'long' : 'fits'
@@ -385,6 +405,8 @@ export type PickAnswers = {
   weather?: Weather
   family?: string
   length?: Length
+  /** 'skip': special editions count as their original album alone. */
+  extras?: Extras
   time?: TimeOfDay
 }
 
@@ -429,7 +451,9 @@ export function rankRecords(
   // short. Records of unknown length stay, ranked below those that fit.
   if (answers.length) {
     const length = answers.length
-    const longEnough = pool.filter((r) => lengthFit(r, length) !== 'short')
+    const longEnough = pool.filter(
+      (r) => lengthFit(r, length, answers.extras) !== 'short',
+    )
     if (longEnough.length) pool = longEnough
   }
 
@@ -470,12 +494,17 @@ export function rankRecords(
       }
 
       if (answers.length) {
-        const fit = lengthFit(record, answers.length)
+        const fit = lengthFit(record, answers.length, answers.extras)
         if (fit === 'fits') {
           score += 0.15
           // Only a real runtime is worth quoting.
-          if (record.durationSec)
-            reasons.push(`${Math.round(record.durationSec / 60)} minutes long`)
+          const sec = runtimeFor(record, answers.extras)
+          if (sec)
+            reasons.push(
+              albumOnly(record, answers.extras)
+                ? `${Math.round(sec / 60)} minutes without the bonus tracks`
+                : `${Math.round(sec / 60)} minutes long`,
+            )
         } else if (fit) score -= 0.25
       }
 

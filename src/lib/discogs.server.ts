@@ -221,7 +221,12 @@ export type DiscogsRelease = {
   }>
 }
 
-export type DiscogsMaster = { id: number; year?: number }
+export type DiscogsMaster = {
+  id: number
+  year?: number
+  /** The main release's tracklist: usually the original album. */
+  tracklist?: Array<{ title: string; type_: string }>
+}
 
 /** Discogs disambiguates duplicate artist names as "Name (2)". */
 export function cleanArtistName(name: string): string {

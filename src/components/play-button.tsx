@@ -12,7 +12,7 @@ import {
 import { Input } from '#/components/ui/input'
 import { deletePlay, logPlay, stopPlay } from '#/lib/collection.functions'
 import { likelyRuntimeSec } from '#/lib/moods'
-import type { PickAnswers } from '#/lib/moods'
+import type { Extras, PickAnswers } from '#/lib/moods'
 import { nowPlayingQuery } from '#/lib/queries'
 import { DEFAULT_RUNTIME_SEC } from '#/lib/records'
 import type { CollectionRecord } from '#/lib/records'
@@ -169,9 +169,12 @@ function useLogPastPlay(record: CollectionRecord) {
   return { log, pending }
 }
 
-/** When a record of this length that ended now would have started. */
-const startedAgo = (record: CollectionRecord) =>
-  Date.now() - (likelyRuntimeSec(record) ?? DEFAULT_RUNTIME_SEC) * 1000
+/**
+ * When a record of this length that ended now would have started: the
+ * original album's length when the picker was asked for that alone.
+ */
+const startedAgo = (record: CollectionRecord, extras?: Extras) =>
+  Date.now() - (likelyRuntimeSec(record, extras) ?? DEFAULT_RUNTIME_SEC) * 1000
 
 /**
  * One tap to log a listen that just finished, without the now-playing dock.
@@ -195,7 +198,10 @@ export function PlayedItButton({
       size={size}
       disabled={pending}
       onClick={() =>
-        void log(startedAgo(record), { source: 'picker', context })
+        void log(startedAgo(record, context?.extras), {
+          source: 'picker',
+          context,
+        })
       }
       className={className}
     >

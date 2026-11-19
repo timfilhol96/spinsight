@@ -1,5 +1,5 @@
 import { db } from '#/lib/supabase.server'
-import { DEFAULT_RUNTIME_SEC } from '#/lib/records'
+import { DEFAULT_RUNTIME_SEC, playRuntimeSec } from '#/lib/records'
 import type { NowPlaying, Reaction } from '#/lib/records'
 import { parseVinylLook, withDiscPhoto } from '#/lib/vinyl-color'
 import type { DiscPhoto, DiscogsFormat } from '#/lib/vinyl-color'
@@ -92,7 +92,9 @@ export async function nowPlayingFor(
     duration_sec: number | null
   }
   const startedAt = new Date(play.played_at as string).getTime()
-  const endsAt = spinEndsAt(play.played_at as string, rel.duration_sec)
+  // The original album alone runs shorter than the whole edition.
+  const runtimeSec = playRuntimeSec(play.context, rel.duration_sec)
+  const endsAt = spinEndsAt(play.played_at as string, runtimeSec)
   if (Date.now() > endsAt) return null
 
   // Respect a hand-picked cover for this user's copy.
@@ -121,7 +123,7 @@ export async function nowPlayingFor(
     ),
     coverImage: item?.cover_url ?? rel.artwork_url ?? rel.cover_image,
     thumb: item?.cover_thumb ?? rel.artwork_thumb ?? rel.thumb,
-    durationSec: rel.duration_sec,
+    durationSec: runtimeSec,
     startedAt: new Date(startedAt).toISOString(),
     endsAt: new Date(endsAt).toISOString(),
     along,

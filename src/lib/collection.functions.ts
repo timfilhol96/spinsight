@@ -3,7 +3,12 @@ import { z } from 'zod'
 import { CURRENCIES, parseMoney } from '#/lib/currency'
 import type { Money } from '#/lib/currency'
 import type { DiscogsRelease } from '#/lib/discogs.server'
-import { DEFAULT_RUNTIME_SEC, detailsOutdated } from '#/lib/records'
+import {
+  DEFAULT_RUNTIME_SEC,
+  detailsOutdated,
+  originalRuntimeSec,
+  spinRuntime,
+} from '#/lib/records'
 import type {
   CollectionRecord,
   CoverOption,
@@ -132,7 +137,7 @@ export const getProfile = createServerFn({ method: 'GET' })
           : timed('plays', async () =>
               supabase
                 .from('plays')
-                .select('id, release_id, played_at, ended_at, source')
+                .select('id, release_id, played_at, ended_at, source, context')
                 .eq('user_id', owner.id)
                 .order('played_at', { ascending: false })
                 .limit(2000),
@@ -176,6 +181,7 @@ export const getProfile = createServerFn({ method: 'GET' })
         playedAt: p.played_at as string,
         endedAt: (p.ended_at as string | null) ?? null,
         source: p.source as 'manual' | 'picker',
+        ...spinRuntime(p.context),
       }))
       .filter((p) => owned.has(p.releaseId))
     const playStats = new Map<number, { count: number; last: string }>()
@@ -257,10 +263,16 @@ export const getProfile = createServerFn({ method: 'GET' })
         numForSale: r.num_for_sale,
         durationSec: r.duration_sec,
         durationSource: r.duration_source ?? null,
+        bonusTracks: (r.tracklist ?? []).filter((t) => t.bonus).length,
+        originalDurationSec: originalRuntimeSec(r.tracklist),
         enriched: !!r.enriched_at,
         needsDetails:
           !r.enriched_at ||
-          detailsOutdated(r.details_version ?? 0, r.tracklist),
+          detailsOutdated(
+            r.details_version ?? 0,
+            r.tracklist,
+            r.is_special_edition,
+          ),
         playCount: playStats.get(Number(r.id))?.count ?? 0,
         lastPlayedAt: playStats.get(Number(r.id))?.last ?? null,
         spotifyGenres: [
@@ -467,6 +479,8 @@ const PlayContext = z
     family: z.string().max(30).optional(),
     length: z.string().max(20).optional(),
     time: z.string().max(20).optional(),
+    /** 'skip': the original album alone, without the bonus tracks. */
+    extras: z.enum(['skip']).optional(),
     mode: z.enum(['guided', 'random', 'friends']).optional(),
     /** Username of the friend whose spin this joins ("Spin it too"). */
     along: z.string().min(1).max(100).optional(),
@@ -514,14 +528,30 @@ export const logPlay = createServerFn({ method: 'POST' })
       .eq('user_id', user.id)
       .eq('release_id', data.releaseId)
     if (!count) throw new Error('That record is not in your collection.')
-    if (data.playedAt) {
+    // The original album alone: its runtime goes with the spin, so it leaves
+    // the now-playing dock and counts as listened when the album ends.
+    let context:
+      (z.infer<typeof PlayContext> & { runtimeSec?: number }) | null =
+      data.context ?? null
+    let runtimeSec: number | null = null
+    if (data.playedAt || context?.extras === 'skip') {
       const { data: rel } = await supabase
         .from('releases')
-        .select('duration_sec')
+        .select('duration_sec, tracklist')
         .eq('id', data.releaseId)
         .maybeSingle()
+      runtimeSec = (rel?.duration_sec as number | null) ?? null
+      if (context?.extras === 'skip') {
+        const original = originalRuntimeSec(rel?.tracklist as Track[] | null)
+        if (original) {
+          runtimeSec = original
+          context = { ...context, runtimeSec: original }
+        }
+      }
+    }
+    if (data.playedAt) {
       const start = Date.parse(data.playedAt)
-      const runtime = (rel?.duration_sec ?? DEFAULT_RUNTIME_SEC) * 1000
+      const runtime = (runtimeSec ?? DEFAULT_RUNTIME_SEC) * 1000
       const { data: row, error } = await supabase
         .from('plays')
         .insert({
@@ -532,7 +562,7 @@ export const logPlay = createServerFn({ method: 'POST' })
           ended_at: new Date(
             Math.min(start + runtime, Date.now()),
           ).toISOString(),
-          context: { ...data.context, backfilled: true },
+          context: { ...context, backfilled: true },
         })
         .select('id')
         .single()
@@ -547,7 +577,7 @@ export const logPlay = createServerFn({ method: 'POST' })
         user_id: user.id,
         release_id: data.releaseId,
         source: data.source,
-        context: data.context ?? null,
+        context,
       })
       .select('id')
       .single()

@@ -17,6 +17,7 @@ import {
   missingTrackLengths,
 } from '#/lib/artwork.server'
 import type { Artwork } from '#/lib/artwork.server'
+import { findBonusTracks } from '#/lib/bonus-tracks.server'
 import { editionTokens } from '#/lib/editions'
 import { env } from '#/lib/env.server'
 import { findSpotifyArtist } from '#/lib/spotify.server'
@@ -361,6 +362,16 @@ type EnrichRow = {
   enriched_at: string | null
   details_version: number
   tracklist: Array<{ duration?: string }> | null
+  is_special_edition: boolean | null
+}
+
+/** An LP or album, not a single or EP (whose B-sides aren't extras). */
+function isAlbum(formats: DiscogsFormat[]): boolean {
+  const d = formats.flatMap((f) => f.descriptions ?? [])
+  return (
+    d.some((x) => x === 'LP' || x === 'Album') &&
+    !d.some((x) => /^(Single|Maxi-Single|EP|Mini-Album)$/.test(x))
+  )
 }
 
 /**
@@ -383,7 +394,7 @@ export async function enrichBatch(
   const { data: rows, error } = await supabase
     .from('collection_items')
     .select(
-      'release:releases!inner(id, master_id, title, year, artists, formats, enriched_at, details_version, tracklist)',
+      'release:releases!inner(id, master_id, title, year, artists, formats, enriched_at, details_version, tracklist, is_special_edition)',
     )
     .eq('user_id', user.id)
   if (error) throw error
@@ -394,7 +405,11 @@ export async function enrichBatch(
     if (
       !rel.enriched_at ||
       rel.enriched_at < staleBefore ||
-      detailsOutdated(rel.details_version, rel.tracklist)
+      detailsOutdated(
+        rel.details_version,
+        rel.tracklist,
+        rel.is_special_edition,
+      )
     )
       todo.set(rel.id, rel)
   }
@@ -402,6 +417,18 @@ export async function enrichBatch(
   // Master id → its year (null when Discogs had none), for this batch, so two
   // pressings of one album never fetch the same master.
   const masterYears = new Map<number, number | null>()
+  // Masters fetched in this batch (null when the request failed).
+  const masters = new Map<number, Promise<DiscogsMaster | null>>()
+  const getMaster = (id: number) => {
+    let m = masters.get(id)
+    if (!m) {
+      m = discogsGet<DiscogsMaster>(`/masters/${id}`, auth(user)).catch(
+        () => null,
+      )
+      masters.set(id, m)
+    }
+    return m
+  }
 
   let processed = 0
   for (const rel of todo.values()) {
@@ -430,12 +457,7 @@ export async function enrichBatch(
           .maybeSingle()
         masterYear =
           (sibling?.original_year as number | undefined) ??
-          (
-            await discogsGet<DiscogsMaster>(
-              `/masters/${rel.master_id}`,
-              auth(user),
-            ).catch(() => null)
-          )?.year ??
+          (await getMaster(rel.master_id))?.year ??
           null
         masterYears.set(rel.master_id, masterYear)
       }
@@ -459,6 +481,26 @@ export async function enrichBatch(
       .map((f) => [f.text, ...(f.descriptions ?? [])].join(' '))
       .join(' ')
     const isEdition = editionTokens(`${rel.title} ${editionText}`).length > 0
+
+    // Tracks beyond the original album, on albums only: a single's B-sides
+    // are the single. The master's tracklist settles it, so it's fetched
+    // (once per album) for editions and for records whose headings or
+    // titles suggest extras; the rest never cost a request.
+    let bonus = isAlbum(rel.formats ?? [])
+      ? findBonusTracks(full.tracklist ?? [], { isEdition })
+      : new Set<number>()
+    if (
+      rel.master_id &&
+      isAlbum(rel.formats ?? []) &&
+      (isEdition || bonus.size)
+    ) {
+      const master = await getMaster(rel.master_id)
+      if (master?.tracklist)
+        bonus = findBonusTracks(full.tracklist ?? [], {
+          isEdition,
+          master: master.tracklist,
+        })
+    }
     let artwork: Record<string, unknown> = {}
     try {
       const found = searchArtist
@@ -536,18 +578,18 @@ export async function enrichBatch(
         lowest_price: full.lowest_price ?? null,
         price_currency: 'USD',
         num_for_sale: full.num_for_sale ?? null,
-        tracklist: tracks.map((t) => {
+        tracklist: tracks.map((t, i) => {
           const sec =
             !parseDuration(t.duration) &&
             streamed?.lengths.find((l) => l.position === t.position)?.sec
-          return sec
-            ? {
-                position: t.position,
-                title: t.title,
-                duration: formatTrackTime(sec),
-                source: streamed!.source,
-              }
-            : { position: t.position, title: t.title, duration: t.duration }
+          return {
+            position: t.position,
+            title: t.title,
+            ...(sec
+              ? { duration: formatTrackTime(sec), source: streamed!.source }
+              : { duration: t.duration }),
+            ...(bonus.has(i) ? { bonus: true } : {}),
+          }
         }),
         duration_sec: duration?.sec ?? null,
         duration_source: duration?.source ?? null,

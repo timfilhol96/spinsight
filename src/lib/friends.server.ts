@@ -1,7 +1,7 @@
 import { db } from '#/lib/supabase.server'
 import type { UserRow } from '#/lib/supabase.server'
 import { reactionsFor, spinEndsAt } from '#/lib/plays.server'
-import { DEFAULT_RUNTIME_SEC } from '#/lib/records'
+import { DEFAULT_RUNTIME_SEC, playRuntimeSec } from '#/lib/records'
 import type {
   Friend,
   FriendSpin,
@@ -50,6 +50,10 @@ type PlayRow = {
     duration_sec: number | null
   }
 }
+
+/** The spin's runtime: the original album alone when it saved one. */
+const runtimeOf = (p: Pick<PlayRow, 'context' | 'release'>) =>
+  playRuntimeSec(p.context, p.release.duration_sec)
 
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, '\\$&')
 
@@ -194,7 +198,7 @@ export async function friendsActivity(
   }
 
   const isOpen = (p: PlayRow) =>
-    !p.ended_at && now <= spinEndsAt(p.played_at, p.release.duration_sec)
+    !p.ended_at && now <= spinEndsAt(p.played_at, runtimeOf(p))
 
   // Newest play per user = now playing (if still open); newest finished one
   // = last spin.
@@ -229,10 +233,10 @@ export async function friendsActivity(
       ),
       coverImage: copy?.cover_url ?? rel.artwork_url ?? rel.cover_image,
       thumb: copy?.cover_thumb ?? rel.artwork_thumb ?? rel.thumb,
-      durationSec: rel.duration_sec,
+      durationSec: runtimeOf(p),
       startedAt: p.played_at,
       endsAt: open
-        ? new Date(spinEndsAt(p.played_at, rel.duration_sec)).toISOString()
+        ? new Date(spinEndsAt(p.played_at, runtimeOf(p))).toISOString()
         : null,
       along: p.context?.along ?? null,
       reactions: mine.map((r) => ({
@@ -393,7 +397,7 @@ async function leaderboard(
   const rows = ids.map((id): LeaderRow => {
     const mine = week.filter((p) => p.user_id === id)
     const minutes = mine.reduce((sum, p) => {
-      const runtime = (p.release.duration_sec ?? DEFAULT_RUNTIME_SEC) * 1000
+      const runtime = (runtimeOf(p) ?? DEFAULT_RUNTIME_SEC) * 1000
       const start = new Date(p.played_at).getTime()
       const end = p.ended_at ? new Date(p.ended_at).getTime() : now
       return sum + Math.max(0, Math.min(runtime, end - start)) / 60_000

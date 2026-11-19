@@ -11,6 +11,8 @@ export type TimedTrack = {
   sec: number
   /** Index in the whole tracklist. */
   index: number
+  /** Not on the original album (a special edition's extra). */
+  bonus?: true
 }
 
 export type Side = { name: string; tracks: TimedTrack[]; length: number }
@@ -55,6 +57,7 @@ export function buildSides(
     duration: string
     /** Set when the sync filled `duration` from streaming. */
     source?: 'spotify' | 'itunes'
+    bonus?: true
   }>,
   opts: {
     totalSec?: number | null
@@ -119,6 +122,7 @@ export function buildSides(
       start: side.length,
       sec: lengths[index],
       index,
+      ...(t.bonus ? { bonus: true as const } : {}),
     })
     side.length += lengths[index]
   })
