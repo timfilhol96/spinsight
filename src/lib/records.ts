@@ -12,8 +12,10 @@ import { trackSeconds } from '#/lib/track-follower'
  * missing a track time are re-fetched for it (see TRACK_TIMES_VERSION).
  * v7: bonus tracks are marked, for the original album's runtime; only
  * records that may have some are re-fetched for it (see BONUS_VERSION).
+ * v8: an album track spelt differently on the master is no longer taken
+ * for a bonus track; only records with bonus tracks are re-fetched.
  */
-export const DETAILS_VERSION = 7
+export const DETAILS_VERSION = 8
 
 /** The version that started marking bonus tracks. */
 const BONUS_VERSION = 7
@@ -32,7 +34,7 @@ export const TRACK_TIMES_VERSION = 5
  */
 export function detailsOutdated(
   version: number,
-  tracklist: Array<{ duration?: string; title?: string }> | null,
+  tracklist: Array<{ duration?: string; title?: string; bonus?: true }> | null,
   isSpecialEdition: boolean | null = false,
 ): boolean {
   if (version < TRACK_TIMES_VERSION) return true
@@ -41,11 +43,14 @@ export function detailsOutdated(
   // Editions, and records with a track named as another take or a bonus
   // (an unlabelled deluxe with live sides). The rest get theirs marked on
   // the monthly refresh.
-  return (
+  if (
     version < BONUS_VERSION &&
     (!!isSpecialEdition ||
       (tracklist ?? []).some((t) => EXTRA_TAG.test(t.title ?? '')))
   )
+    return true
+  // v8 changed which tracks count as bonus: check those that have some.
+  return version < 8 && (tracklist ?? []).some((t) => t.bonus)
 }
 
 /** "(Live)", "[Demo]", "- Instrumental", "(Bonus Track)": maybe not the album take. */

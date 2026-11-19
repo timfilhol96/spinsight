@@ -361,7 +361,7 @@ type EnrichRow = {
   formats: DiscogsFormat[]
   enriched_at: string | null
   details_version: number
-  tracklist: Array<{ duration?: string; title?: string }> | null
+  tracklist: Array<{ duration?: string; title?: string; bonus?: true }> | null
   is_special_edition: boolean | null
 }
 

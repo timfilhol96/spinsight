@@ -154,9 +154,16 @@ function compareWithMaster(
   const sure = (n: number) => matched >= n * 0.75
   if (album.length >= tracks.length)
     return sure(tracks.length) ? { kind: 'same' } : null
-  return sure(album.length)
-    ? { kind: 'extras', extras, albumTracks: album.length }
-    : null
+  if (!sure(album.length)) return null
+  // Master tracks no title matched are on this release too, spelt another
+  // way ("All The Lights We Don't See"): the unmatched tracks among the
+  // album's own, before its last matched track, fill those places in order.
+  let unplaced = album.length - matched
+  let lastMatched = tracks.length - 1
+  while (lastMatched >= 0 && extras.has(lastMatched)) lastMatched--
+  for (let i = 0; i < lastMatched && unplaced > 0; i++)
+    if (extras.delete(i)) unplaced--
+  return { kind: 'extras', extras, albumTracks: album.length }
 }
 
 /** Some extras, and some album left. */
