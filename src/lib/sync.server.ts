@@ -363,6 +363,7 @@ type EnrichRow = {
   details_version: number
   tracklist: Array<{ duration?: string; title?: string; bonus?: true }> | null
   is_special_edition: boolean | null
+  album_artwork_url: string | null
 }
 
 /** An LP or album, not a single or EP (whose B-sides aren't extras). */
@@ -394,7 +395,7 @@ export async function enrichBatch(
   const { data: rows, error } = await supabase
     .from('collection_items')
     .select(
-      'release:releases!inner(id, master_id, title, year, artists, formats, enriched_at, details_version, tracklist, is_special_edition)',
+      'release:releases!inner(id, master_id, title, year, artists, formats, enriched_at, details_version, tracklist, is_special_edition, album_artwork_url)',
     )
     .eq('user_id', user.id)
   if (error) throw error
@@ -409,6 +410,7 @@ export async function enrichBatch(
         rel.details_version,
         rel.tracklist,
         rel.is_special_edition,
+        rel.album_artwork_url,
       )
     )
       todo.set(rel.id, rel)

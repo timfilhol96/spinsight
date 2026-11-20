@@ -14,6 +14,13 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    date: '2026-11-20',
+    title: 'Fixes',
+    items: [
+      'A few records showed their CD cover, sometimes photographed in its plastic case. They now show the clean, square album artwork.',
+    ],
+  },
+  {
     date: '2026-11-19',
     title: 'Bonus tracks get a runtime of their own',
     items: [

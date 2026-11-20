@@ -272,6 +272,7 @@ export const getProfile = createServerFn({ method: 'GET' })
             r.details_version ?? 0,
             r.tracklist,
             r.is_special_edition,
+            r.album_artwork_url,
           ),
         playCount: playStats.get(Number(r.id))?.count ?? 0,
         lastPlayedAt: playStats.get(Number(r.id))?.last ?? null,

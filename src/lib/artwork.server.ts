@@ -141,10 +141,46 @@ export type ArtworkIds = { masterId?: number | null; releaseId: number }
 const CAA_TIMEOUT_MS = 8_000
 
 /**
+ * Narrowest short-to-long side ratio taken as a sleeve. An uneven LP scan
+ * is 0.96 or squarer; a CD booklet or a photo of a jewel case is about 0.88
+ * (142 × 125 mm), with the artwork cropped or behind plastic.
+ */
+const MIN_SQUARENESS = 0.93
+
+/** Width and height from a JPEG's start-of-frame marker; null if not found. */
+export function jpegSize(
+  bytes: Uint8Array,
+): { width: number; height: number } | null {
+  let i = 2 // past the SOI marker
+  while (i + 9 < bytes.length) {
+    if (bytes[i] !== 0xff) return null
+    const marker = bytes[i + 1]
+    if (marker === 0xff) {
+      i++ // fill byte
+      continue
+    }
+    // SOF0–SOF15, except DHT (C4), JPG (C8) and DAC (CC).
+    if (
+      marker >= 0xc0 &&
+      marker <= 0xcf &&
+      ![0xc4, 0xc8, 0xcc].includes(marker)
+    )
+      return {
+        height: (bytes[i + 5] << 8) | bytes[i + 6],
+        width: (bytes[i + 7] << 8) | bytes[i + 8],
+      }
+    i += 2 + ((bytes[i + 2] << 8) | bytes[i + 3])
+  }
+  return null
+}
+
+/**
  * The album's front cover from the Cover Art Archive, by MusicBrainz release
  * group. The MBID comes from record_facts_cache, or else from MusicBrainz
  * through its one-a-second queue (recordFactsFor caches the answer for the
- * listening room too). Null on any miss or failure: it never throws.
+ * listening room too). Null on any miss or failure, and for a cover that
+ * isn't square (a CD's, often photographed in its case), so the streaming
+ * services' artwork is used instead: it never throws.
  */
 async function caaCover(
   ids: ArtworkIds,
@@ -155,14 +191,19 @@ async function caaCover(
     if (!facts?.mbid) return null
     const base = `https://coverartarchive.org/release-group/${encodeURIComponent(facts.mbid)}`
     // A release group with a front cover redirects to the image; without
-    // one it answers 404. Asking costs nothing, so check before storing a
-    // link that would break.
-    const res = await fetch(`${base}/front-500`, {
-      method: 'HEAD',
-      redirect: 'manual',
+    // one it answers 404. The small thumbnail (about 20 KB) both proves the
+    // link works and gives the cover's shape.
+    const res = await fetch(`${base}/front-250`, {
       signal: AbortSignal.timeout(CAA_TIMEOUT_MS),
     })
-    if (res.status >= 400) return null
+    if (!res.ok) return null
+    const size = jpegSize(new Uint8Array(await res.arrayBuffer()))
+    if (
+      size &&
+      Math.min(size.width, size.height) / Math.max(size.width, size.height) <
+        MIN_SQUARENESS
+    )
+      return null
     return {
       url: `${base}/front-500`,
       thumb: `${base}/front-250`,

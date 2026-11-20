@@ -14,8 +14,10 @@ import { trackSeconds } from '#/lib/track-follower'
  * records that may have some are re-fetched for it (see BONUS_VERSION).
  * v8: an album track spelt differently on the master is no longer taken
  * for a bonus track; only records with bonus tracks are re-fetched.
+ * v9: a Cover Art Archive cover that isn't square (a CD's) is passed over;
+ * only records with one of its covers are re-fetched.
  */
-export const DETAILS_VERSION = 8
+export const DETAILS_VERSION = 9
 
 /** The version that started marking bonus tracks. */
 const BONUS_VERSION = 7
@@ -36,6 +38,7 @@ export function detailsOutdated(
   version: number,
   tracklist: Array<{ duration?: string; title?: string; bonus?: true }> | null,
   isSpecialEdition: boolean | null = false,
+  albumArtworkUrl: string | null = null,
 ): boolean {
   if (version < TRACK_TIMES_VERSION) return true
   if (version < 6 && (tracklist ?? []).some((t) => !trackSeconds(t.duration)))
@@ -50,7 +53,11 @@ export function detailsOutdated(
   )
     return true
   // v8 changed which tracks count as bonus: check those that have some.
-  return version < 8 && (tracklist ?? []).some((t) => t.bonus)
+  if (version < 8 && (tracklist ?? []).some((t) => t.bonus)) return true
+  // v9 checks a Cover Art Archive cover's shape: look again at those.
+  return (
+    version < 9 && !!albumArtworkUrl?.startsWith('https://coverartarchive.org/')
+  )
 }
 
 /** "(Live)", "[Demo]", "- Instrumental", "(Bonus Track)": maybe not the album take. */
