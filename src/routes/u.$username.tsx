@@ -250,6 +250,16 @@ function ProfileLayout() {
         >
           Insights
         </Link>
+        {!profile.listeningHidden && (
+          <Link
+            to="/u/$username/history"
+            params={{ username }}
+            className={tabClass}
+            activeProps={activeTab}
+          >
+            History
+          </Link>
+        )}
         <Link
           to="/u/$username/wrapped"
           params={{ username }}

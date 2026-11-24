@@ -607,3 +607,114 @@ export function listening(
     })),
   }
 }
+
+// ---------- listening history ----------
+
+export type HistorySpin = {
+  play: Play
+  record: CollectionRecord
+  /** How long it played (see `listenedSec`). */
+  sec: number
+  /** No track times: counted as a typical LP. */
+  estimated: boolean
+  /** Started recently and not ended: may still be on the turntable. */
+  playing: boolean
+}
+
+export type HistoryDay = {
+  /** Local midnight. */
+  start: Date
+  spins: HistorySpin[]
+}
+
+export type HistoryWeek = {
+  /** Monday, local midnight. */
+  start: Date
+  days: HistoryDay[]
+  spins: number
+  totalSec: number
+  /** Spins counted as a typical LP for want of track times. */
+  estimated: number
+  /** The week's most spun record, when one was spun more than once. */
+  topRecord: { record: CollectionRecord; count: number } | null
+  topArtist: Ranked | null
+}
+
+/** Local midnight on the Monday of `d`'s week. */
+export function weekStart(d: Date): Date {
+  const out = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  out.setDate(out.getDate() - ((out.getDay() + 6) % 7))
+  return out
+}
+
+/**
+ * Logged spins by week (Monday to Sunday, in local time) and by day, newest
+ * first. Weeks without a spin are left out. Plays must be newest first, as
+ * on the profile.
+ */
+export function listeningHistory(
+  records: CollectionRecord[],
+  plays: Play[],
+  now = Date.now(),
+): HistoryWeek[] {
+  const byRelease = new Map(records.map((r) => [r.releaseId, r]))
+  const weeks: HistoryWeek[] = []
+  const weekPlays: Play[][] = []
+  for (const play of plays) {
+    const record = byRelease.get(play.releaseId)
+    if (!record) continue
+    const at = new Date(play.playedAt)
+    const monday = weekStart(at)
+    let week = weeks.at(-1)
+    if (week?.start.getTime() !== monday.getTime()) {
+      week = {
+        start: monday,
+        days: [],
+        spins: 0,
+        totalSec: 0,
+        estimated: 0,
+        topRecord: null,
+        topArtist: null,
+      }
+      weeks.push(week)
+      weekPlays.push([])
+    }
+    weekPlays.at(-1)!.push(play)
+    const midnight = new Date(at.getFullYear(), at.getMonth(), at.getDate())
+    let day = week.days.at(-1)
+    if (day?.start.getTime() !== midnight.getTime()) {
+      day = { start: midnight, spins: [] }
+      week.days.push(day)
+    }
+    const { sec, estimated } = listenedSec(play, record, now)
+    const runtime =
+      (play.runtimeSec ?? record.durationSec ?? DEFAULT_RUNTIME_SEC) * 1000
+    day.spins.push({
+      play,
+      record,
+      sec,
+      estimated,
+      playing: !play.endedAt && now - at.getTime() < runtime,
+    })
+    week.spins++
+    week.totalSec += sec
+    if (estimated) week.estimated++
+  }
+  weeks.forEach((week, i) => {
+    const spun = weekPlays[i]
+    const counts = new Map<number, number>()
+    for (const p of spun)
+      counts.set(p.releaseId, (counts.get(p.releaseId) ?? 0) + 1)
+    // Ties go to the record spun most recently (plays are newest first).
+    const top = [...counts].reduce<[number, number] | null>(
+      (best, cur) => (!best || cur[1] > best[1] ? cur : best),
+      null,
+    )
+    week.topRecord =
+      top && top[1] > 1
+        ? { record: byRelease.get(top[0])!, count: top[1] }
+        : null
+    week.topArtist = playedArtists(records, spun, 1)[0] ?? null
+  })
+  return weeks
+}

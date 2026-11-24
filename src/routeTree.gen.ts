@@ -24,6 +24,7 @@ import { Route as ApiCronSyncRouteImport } from './routes/api/cron/sync'
 import { Route as FriendsUsernameIndexRouteImport } from './routes/friends.$username.index'
 import { Route as FriendsUsernameYearRouteImport } from './routes/friends.$username.year'
 import { Route as UUsernameIndexRouteImport } from './routes/u.$username.index'
+import { Route as UUsernameHistoryRouteImport } from './routes/u.$username.history'
 import { Route as UUsernameInsightsRouteImport } from './routes/u.$username.insights'
 import { Route as UUsernamePickRouteImport } from './routes/u.$username.pick'
 import { Route as UUsernameWantsRouteImport } from './routes/u.$username.wants'
@@ -106,6 +107,11 @@ const UUsernameIndexRoute = UUsernameIndexRouteImport.update({
   path: '/',
   getParentRoute: () => UUsernameRoute,
 } as any)
+const UUsernameHistoryRoute = UUsernameHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => UUsernameRoute,
+} as any)
 const UUsernameInsightsRoute = UUsernameInsightsRouteImport.update({
   id: '/insights',
   path: '/insights',
@@ -151,6 +157,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/cron/sync': typeof ApiCronSyncRoute
   '/friends/$username/year': typeof FriendsUsernameYearRoute
+  '/u/$username/history': typeof UUsernameHistoryRoute
   '/u/$username/insights': typeof UUsernameInsightsRoute
   '/u/$username/pick': typeof UUsernamePickRoute
   '/u/$username/wants': typeof UUsernameWantsRoute
@@ -172,6 +179,7 @@ export interface FileRoutesByTo {
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/cron/sync': typeof ApiCronSyncRoute
   '/friends/$username/year': typeof FriendsUsernameYearRoute
+  '/u/$username/history': typeof UUsernameHistoryRoute
   '/u/$username/insights': typeof UUsernameInsightsRoute
   '/u/$username/pick': typeof UUsernamePickRoute
   '/u/$username/wants': typeof UUsernameWantsRoute
@@ -196,6 +204,7 @@ export interface FileRoutesById {
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/cron/sync': typeof ApiCronSyncRoute
   '/friends/$username/year': typeof FriendsUsernameYearRoute
+  '/u/$username/history': typeof UUsernameHistoryRoute
   '/u/$username/insights': typeof UUsernameInsightsRoute
   '/u/$username/pick': typeof UUsernamePickRoute
   '/u/$username/wants': typeof UUsernameWantsRoute
@@ -221,6 +230,7 @@ export interface FileRouteTypes {
     | '/api/auth/logout'
     | '/api/cron/sync'
     | '/friends/$username/year'
+    | '/u/$username/history'
     | '/u/$username/insights'
     | '/u/$username/pick'
     | '/u/$username/wants'
@@ -242,6 +252,7 @@ export interface FileRouteTypes {
     | '/api/auth/logout'
     | '/api/cron/sync'
     | '/friends/$username/year'
+    | '/u/$username/history'
     | '/u/$username/insights'
     | '/u/$username/pick'
     | '/u/$username/wants'
@@ -265,6 +276,7 @@ export interface FileRouteTypes {
     | '/api/auth/logout'
     | '/api/cron/sync'
     | '/friends/$username/year'
+    | '/u/$username/history'
     | '/u/$username/insights'
     | '/u/$username/pick'
     | '/u/$username/wants'
@@ -399,6 +411,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UUsernameIndexRouteImport
       parentRoute: typeof UUsernameRoute
     }
+    '/u/$username/history': {
+      id: '/u/$username/history'
+      path: '/history'
+      fullPath: '/u/$username/history'
+      preLoaderRoute: typeof UUsernameHistoryRouteImport
+      parentRoute: typeof UUsernameRoute
+    }
     '/u/$username/insights': {
       id: '/u/$username/insights'
       path: '/insights'
@@ -459,6 +478,7 @@ const FriendsUsernameRouteWithChildren = FriendsUsernameRoute._addFileChildren(
 )
 
 interface UUsernameRouteChildren {
+  UUsernameHistoryRoute: typeof UUsernameHistoryRoute
   UUsernameInsightsRoute: typeof UUsernameInsightsRoute
   UUsernamePickRoute: typeof UUsernamePickRoute
   UUsernameWantsRoute: typeof UUsernameWantsRoute
@@ -467,6 +487,7 @@ interface UUsernameRouteChildren {
 }
 
 const UUsernameRouteChildren: UUsernameRouteChildren = {
+  UUsernameHistoryRoute: UUsernameHistoryRoute,
   UUsernameInsightsRoute: UUsernameInsightsRoute,
   UUsernamePickRoute: UUsernamePickRoute,
   UUsernameWantsRoute: UUsernameWantsRoute,

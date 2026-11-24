@@ -15,6 +15,16 @@ export type Release = {
 export const CHANGELOG: Release[] = [
   {
     date: '2026-11-24',
+    title: 'Listening history',
+    issue: 4,
+    items: [
+      'A new History tab lists every spin you’ve logged, newest first, a week at a time: what you played each day, when, and for how long.',
+      'Each week shows how many spins and how much time listening it added up to, with its most played record and artist.',
+      'Click a spin to open the record. Friends see your history only if you share what you spin.',
+    ],
+  },
+  {
+    date: '2026-11-24',
     title: 'Fixes',
     issue: 4,
     items: [
