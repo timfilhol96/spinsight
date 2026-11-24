@@ -14,6 +14,16 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    date: '2026-11-24',
+    title: 'Fixes',
+    issue: 4,
+    items: [
+      'Collections of more than 1,000 records now show in full: the count, the grid, Insights, the picker and Year in Vinyl had stopped at the newest 1,000.',
+      'Records past the first 1,000 now get their covers, tracklists and prices, and syncs of big collections finish sooner.',
+      'Wantlists of more than 1,000 records show in full, and “Download my data” includes everything.',
+    ],
+  },
+  {
     date: '2026-11-20',
     title: 'Fixes',
     items: [

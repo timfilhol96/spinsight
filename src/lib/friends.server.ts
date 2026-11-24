@@ -1,4 +1,4 @@
-import { db } from '#/lib/supabase.server'
+import { db, selectAll } from '#/lib/supabase.server'
 import type { UserRow } from '#/lib/supabase.server'
 import { reactionsFor, spinEndsAt } from '#/lib/plays.server'
 import { DEFAULT_RUNTIME_SEC, playRuntimeSec } from '#/lib/records'
@@ -179,10 +179,14 @@ export async function friendsActivity(
   }
 
   // The viewer's own shelf, by release and by album, for "Spin it too".
-  const { data: myItems } = await supabase
-    .from('collection_items')
-    .select('instance_id, release_id, release:releases!inner(master_id)')
-    .eq('user_id', viewer.id)
+  const { data: myItems } = await selectAll((from, to) =>
+    supabase
+      .from('collection_items')
+      .select('instance_id, release_id, release:releases!inner(master_id)')
+      .eq('user_id', viewer.id)
+      .order('instance_id')
+      .range(from, to),
+  )
   const myByRelease = new Map<number, number>()
   const myByMaster = new Map<
     number,
@@ -434,10 +438,14 @@ async function wantMatches(
 ): Promise<WantMatch[]> {
   if (!visible.length) return []
   const supabase = db()
-  const { data: wants, error } = await supabase
-    .from('want_items')
-    .select('release_id, master_id, title, artist_display, year, thumb')
-    .eq('user_id', viewer.id)
+  const { data: wants, error } = await selectAll((from, to) =>
+    supabase
+      .from('want_items')
+      .select('release_id, master_id, title, artist_display, year, thumb')
+      .eq('user_id', viewer.id)
+      .order('release_id')
+      .range(from, to),
+  )
   if (error || !wants?.length) return []
 
   type Hit = { user_id: string; release_id: number; master_id: number | null }

@@ -87,7 +87,7 @@ export const getProfile = createServerFn({ method: 'GET' })
       if (demo.demoMode() && data.username.toLowerCase() === demo.DEMO_USERNAME)
         return demo.demoProfile()
     }
-    const { db } = await import('#/lib/supabase.server')
+    const { db, selectAll } = await import('#/lib/supabase.server')
     const { currentUser } = await import('#/lib/session.server')
     const { timed } = await import('#/lib/timing.server')
     const { usdRates } = await import('#/lib/rates.server')
@@ -124,23 +124,32 @@ export const getProfile = createServerFn({ method: 'GET' })
 
     const [{ data: items, error }, { data: playRows }, rates, nowPlaying] =
       await Promise.all([
-        timed('items', async () =>
-          supabase
-            .from('collection_items')
-            // '*' so a column added by a migration not yet run is just absent.
-            .select('*, release:releases!inner(*)')
-            .eq('user_id', owner.id)
-            .order('date_added', { ascending: false }),
+        timed('items', () =>
+          selectAll((from, to) =>
+            supabase
+              .from('collection_items')
+              // '*' so a column added by a migration not yet run is just absent.
+              .select('*, release:releases!inner(*)')
+              .eq('user_id', owner.id)
+              .order('date_added', { ascending: false })
+              .order('instance_id')
+              .range(from, to),
+          ),
         ),
         listeningHidden
           ? { data: [] }
-          : timed('plays', async () =>
-              supabase
-                .from('plays')
-                .select('id, release_id, played_at, ended_at, source, context')
-                .eq('user_id', owner.id)
-                .order('played_at', { ascending: false })
-                .limit(2000),
+          : timed('plays', () =>
+              selectAll((from, to) =>
+                supabase
+                  .from('plays')
+                  .select(
+                    'id, release_id, played_at, ended_at, source, context',
+                  )
+                  .eq('user_id', owner.id)
+                  .order('played_at', { ascending: false })
+                  .order('id')
+                  .range(from, to),
+              ),
             ),
         timed('rates', usdRates),
         listeningHidden
@@ -156,14 +165,25 @@ export const getProfile = createServerFn({ method: 'GET' })
     }
     const genresByArtist = new Map<number, string[]>()
     if (artistIds.size) {
-      const { data: artists } = await timed('artists', async () =>
-        supabase
-          .from('artists')
-          .select('discogs_id, spotify_genres')
-          .in('discogs_id', [...artistIds]),
+      // In batches: a big collection has more artists than one response
+      // holds (1,000 rows) or one URL fits.
+      const ids = [...artistIds]
+      const batches: number[][] = []
+      for (let i = 0; i < ids.length; i += 300)
+        batches.push(ids.slice(i, i + 300))
+      const results = await timed('artists', () =>
+        Promise.all(
+          batches.map((batch) =>
+            supabase
+              .from('artists')
+              .select('discogs_id, spotify_genres')
+              .in('discogs_id', batch),
+          ),
+        ),
       )
-      for (const a of artists ?? [])
-        genresByArtist.set(Number(a.discogs_id), a.spotify_genres ?? [])
+      for (const { data: artists } of results)
+        for (const a of artists ?? [])
+          genresByArtist.set(Number(a.discogs_id), a.spotify_genres ?? [])
     }
 
     // Only plays of records still in the collection count. Plays of a pressing

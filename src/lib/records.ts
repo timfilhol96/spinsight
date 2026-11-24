@@ -235,7 +235,7 @@ export type Profile = {
    * play counts are zero, so say "private" rather than show them.
    */
   listeningHidden: boolean
-  /** Most recent plays first (capped). */
+  /** Every play of a record still in the collection, most recent first. */
   plays: Play[]
   records: CollectionRecord[]
 }

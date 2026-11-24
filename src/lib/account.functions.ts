@@ -8,26 +8,32 @@ import { z } from 'zod'
 export const exportMyData = createServerFn({ method: 'GET' }).handler(
   async () => {
     const { requireUser } = await import('#/lib/session.server')
-    const { db } = await import('#/lib/supabase.server')
+    const { db, selectAll } = await import('#/lib/supabase.server')
     const user = await requireUser()
     const supabase = db()
-    const mine = async (table: string, column = 'user_id') => {
-      const { data, error } = await supabase
-        .from(table)
-        .select('*')
-        .eq(column, user.id)
+    // All of it, in pages: one response stops at 1,000 rows. `order` is a
+    // column that's unique for this user, so no row is skipped between pages.
+    const mine = async (table: string, column: string, order: string) => {
+      const { data, error } = await selectAll((from, to) =>
+        supabase
+          .from(table)
+          .select('*')
+          .eq(column, user.id)
+          .order(order)
+          .range(from, to),
+      )
       if (error) throw new Error(`${table}: ${error.message}`)
       return data
     }
     const [collection, plays, wantlist, follows, followers, reactions, syncs] =
       await Promise.all([
-        mine('collection_items'),
-        mine('plays'),
-        mine('want_items'),
-        mine('follows', 'follower_id'),
-        mine('follows', 'followee_id'),
-        mine('play_reactions'),
-        mine('sync_runs'),
+        mine('collection_items', 'user_id', 'instance_id'),
+        mine('plays', 'user_id', 'id'),
+        mine('want_items', 'user_id', 'release_id'),
+        mine('follows', 'follower_id', 'followee_username'),
+        mine('follows', 'followee_id', 'follower_id'),
+        mine('play_reactions', 'user_id', 'play_id'),
+        mine('sync_runs', 'user_id', 'id'),
       ])
     const {
       oauth_token: _token,

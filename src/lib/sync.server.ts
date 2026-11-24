@@ -23,7 +23,7 @@ import { env } from '#/lib/env.server'
 import { findSpotifyArtist } from '#/lib/spotify.server'
 import type { SpotifyArtist } from '#/lib/spotify.server'
 import { DETAILS_VERSION, detailsOutdated } from '#/lib/records'
-import { db } from '#/lib/supabase.server'
+import { db, selectAll } from '#/lib/supabase.server'
 import type { UserRow } from '#/lib/supabase.server'
 import { parseVinylLook } from '#/lib/vinyl-color'
 import type { DiscogsFormat } from '#/lib/vinyl-color'
@@ -92,10 +92,14 @@ export async function syncCollection(
     .single()
 
   try {
-    const { data: existing, error: exErr } = await supabase
-      .from('collection_items')
-      .select('instance_id')
-      .eq('user_id', user.id)
+    const { data: existing, error: exErr } = await selectAll((from, to) =>
+      supabase
+        .from('collection_items')
+        .select('instance_id')
+        .eq('user_id', user.id)
+        .order('instance_id')
+        .range(from, to),
+    )
     if (exErr) throw exErr
     const before = new Set((existing ?? []).map((r) => Number(r.instance_id)))
 
@@ -315,10 +319,14 @@ async function syncWantlist(user: UserRow) {
       .upsert([...rows.values()], { onConflict: 'user_id,release_id' })
     if (error) throw error
   }
-  const { data: existing, error } = await supabase
-    .from('want_items')
-    .select('release_id')
-    .eq('user_id', user.id)
+  const { data: existing, error } = await selectAll((from, to) =>
+    supabase
+      .from('want_items')
+      .select('release_id')
+      .eq('user_id', user.id)
+      .order('release_id')
+      .range(from, to),
+  )
   if (error) throw error
   const gone = (existing ?? [])
     .map((r) => Number(r.release_id))
@@ -392,12 +400,16 @@ export async function enrichBatch(
     Date.now() - REENRICH_AFTER_DAYS * 86_400_000,
   ).toISOString()
 
-  const { data: rows, error } = await supabase
-    .from('collection_items')
-    .select(
-      'release:releases!inner(id, master_id, title, year, artists, formats, enriched_at, details_version, tracklist, is_special_edition, album_artwork_url)',
-    )
-    .eq('user_id', user.id)
+  const { data: rows, error } = await selectAll((from, to) =>
+    supabase
+      .from('collection_items')
+      .select(
+        'release:releases!inner(id, master_id, title, year, artists, formats, enriched_at, details_version, tracklist, is_special_edition, album_artwork_url)',
+      )
+      .eq('user_id', user.id)
+      .order('instance_id')
+      .range(from, to),
+  )
   if (error) throw error
 
   const todo = new Map<number, EnrichRow>()

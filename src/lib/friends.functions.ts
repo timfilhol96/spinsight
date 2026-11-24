@@ -165,7 +165,7 @@ export const getWantlist = createServerFn({ method: 'GET' })
   )
   .handler(async ({ data }): Promise<WantlistItem[]> => {
     const { currentUser } = await import('#/lib/session.server')
-    const { db } = await import('#/lib/supabase.server')
+    const { db, selectAll } = await import('#/lib/supabase.server')
     const { findUser } = await import('#/lib/friends.server')
     const [viewer, owner] = await Promise.all([
       currentUser(),
@@ -173,11 +173,15 @@ export const getWantlist = createServerFn({ method: 'GET' })
     ])
     if (!owner || (!owner.is_public && owner.id !== viewer?.id)) return []
     // '*' so this keeps working before migration 011 adds cover and colour.
-    const { data: rows, error } = await db()
-      .from('want_items')
-      .select('*')
-      .eq('user_id', owner.id)
-      .order('date_added', { ascending: false })
+    const { data: rows, error } = await selectAll((from, to) =>
+      db()
+        .from('want_items')
+        .select('*')
+        .eq('user_id', owner.id)
+        .order('date_added', { ascending: false })
+        .order('release_id')
+        .range(from, to),
+    )
     if (error) return []
     return rows.map((w) => ({
       releaseId: Number(w.release_id),
