@@ -20,7 +20,7 @@ export const CHANGELOG: Release[] = [
     items: [
       'A new History tab lists every spin you’ve logged, newest first, a week at a time: what you played each day, when, and for how long.',
       'Each week shows how many spins and how much time listening it added up to, with its most played record and artist.',
-      'Click a spin to open the record. Friends see your history only if you share what you spin.',
+      'Click a spin to open the record. Visitors to your public collection see your history only if you share what you spin.',
     ],
   },
   {
