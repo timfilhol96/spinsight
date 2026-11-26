@@ -11,7 +11,7 @@ import { logPlay } from '#/lib/collection.functions'
 import { reactToPlay } from '#/lib/friends.functions'
 import { REACTIONS, firstName, timeAgo } from '#/lib/friends'
 import type { Friend, FriendSpin } from '#/lib/friends'
-import { friendsQuery, nowPlayingQuery } from '#/lib/queries'
+import { FRIENDS_KEY, friendsQuery, nowPlayingQuery } from '#/lib/queries'
 import { cn } from '#/lib/utils'
 
 /** Ticks every 15 s so progress bars and "x min ago" stay fresh. */
@@ -220,7 +220,7 @@ export function SpinAlong({
       await Promise.all([
         qc.invalidateQueries({ queryKey: nowPlayingQuery.queryKey }),
         qc.invalidateQueries({ queryKey: ['profile'] }),
-        qc.invalidateQueries({ queryKey: friendsQuery.queryKey }),
+        qc.invalidateQueries({ queryKey: FRIENDS_KEY }),
       ])
       toast.success(`Spinning along with ${firstName(friend)}.`)
     } catch (e) {

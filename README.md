@@ -95,7 +95,12 @@ TanStack Query · Supabase (Postgres) · Vercel.
   too", a weekly leaderboard, recent additions and wantlist matches (the
   wantlist is mirrored on every sync). The compare pages (taste match, crate
   overlap, a joint year) run in the browser on both cached profiles. Anyone
-  can keep their spins private while their collection stays public.
+  can keep their spins private while their collection stays public. The tab
+  is split into separate queries: the friend list and what they're spinning
+  load first and are polled; the leaderboard and the sync-driven cards
+  (collection sizes, new additions, want matches) load beside it on their
+  own schedule. The per-friend work runs in database functions (migration
+  017), so it costs about the same with 5 friends or 500.
 - **Your data** (`src/lib/account.functions.ts`, on `/privacy`): signed-in
   users can download everything stored about them as JSON or delete their
   account (every table cascades from `users`). Privacy, Terms, Trust and How

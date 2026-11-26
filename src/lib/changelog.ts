@@ -14,6 +14,14 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    date: '2026-11-26',
+    title: 'Faster Friends tab',
+    items: [
+      'The Friends tab opens much faster when you follow a lot of people. Who’s spinning shows up first, and the leaderboard and sidebar fill in right after.',
+      'Friends no longer go missing from the feed when others have spun a lot: everyone you follow shows their last spin and new records.',
+    ],
+  },
+  {
     date: '2026-11-24',
     title: 'Listening history',
     issue: 4,

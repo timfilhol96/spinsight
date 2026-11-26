@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Button } from '#/components/ui/button'
 import { followUser, unfollowUser } from '#/lib/friends.functions'
 import { inviteUrl } from '#/lib/friends'
-import { friendsQuery, viewerQuery } from '#/lib/queries'
+import { FRIENDS_KEY, friendFollowsQuery, viewerQuery } from '#/lib/queries'
 import { cn } from '#/lib/utils'
 
 /** Follow / unfollow a Discogs username, with toasts. */
@@ -18,7 +18,7 @@ export function useFollow() {
     setPending(true)
     try {
       const r = await followUser({ data: { username } })
-      await qc.invalidateQueries({ queryKey: friendsQuery.queryKey })
+      await qc.invalidateQueries({ queryKey: FRIENDS_KEY })
       if (r.pending && viewer) {
         toast(`${r.username} isn't on Spinsight yet.`, {
           description:
@@ -44,7 +44,7 @@ export function useFollow() {
     setPending(true)
     try {
       await unfollowUser({ data: { username } })
-      await qc.invalidateQueries({ queryKey: friendsQuery.queryKey })
+      await qc.invalidateQueries({ queryKey: FRIENDS_KEY })
       toast(`Unfollowed ${username}.`)
     } catch (e) {
       toast.error((e as Error).message)
@@ -85,16 +85,15 @@ export function FollowButton({
   className?: string
 }) {
   const { data: viewer } = useQuery(viewerQuery)
-  const { data: activity } = useQuery({ ...friendsQuery, enabled: !!viewer })
+  const { data: follows } = useQuery({
+    ...friendFollowsQuery,
+    enabled: !!viewer,
+  })
   const { follow, unfollow, pending } = useFollow()
   if (!viewer || viewer.username.toLowerCase() === username.toLowerCase())
     return null
-  const following = activity?.friends.some(
-    (f) => f.username.toLowerCase() === username.toLowerCase(),
-  )
-  const followsYou = activity?.followers.some(
-    (f) => f.username.toLowerCase() === username.toLowerCase(),
-  )
+  const following = follows?.following.includes(username.toLowerCase())
+  const followsYou = follows?.followers.includes(username.toLowerCase())
   if (following) {
     return (
       <Button
@@ -115,7 +114,7 @@ export function FollowButton({
     <Button
       size="sm"
       onClick={() => follow(username)}
-      disabled={pending || !activity}
+      disabled={pending || !follows}
       className={cn(
         'bg-record-1 text-record-ink hover:bg-record-1/90',
         className,
