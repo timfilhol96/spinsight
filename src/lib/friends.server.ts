@@ -1,17 +1,28 @@
-import { db, selectAll } from '#/lib/supabase.server'
+import { db } from '#/lib/supabase.server'
 import type { UserRow } from '#/lib/supabase.server'
 import { reactionsFor, spinEndsAt } from '#/lib/plays.server'
 import { DEFAULT_RUNTIME_SEC, playRuntimeSec } from '#/lib/records'
+import type { Reaction } from '#/lib/records'
+import { ADDITIONS_PER_FRIEND } from '#/lib/friends'
 import type {
   Friend,
+  FriendAdditions,
+  FriendFollows,
+  FriendRecentSpin,
   FriendSpin,
   FriendUser,
-  FriendsActivity,
+  FriendsCrates,
+  FriendsLive,
   LeaderRow,
   WantMatch,
 } from '#/lib/friends'
 import { parseVinylLook, withDiscPhoto } from '#/lib/vinyl-color'
 import type { DiscPhoto, DiscogsFormat } from '#/lib/vinyl-color'
+
+// The Friends tab is a few separate queries so the list of friends and what
+// they're spinning (polled) doesn't wait on the slower, steadier parts
+// (leaderboard, want matches, new additions). The heavy lifting is done by
+// the database functions in migration 017.
 
 const DAY = 86_400_000
 /** How far back the feed looks for last spins and new additions. */
@@ -20,6 +31,10 @@ const LEADERBOARD_DAYS = 7
 const PICKER_DAYS = 14
 /** A record owned this long before its first logged spin was "rescued". */
 const DUST_DAYS = 180
+/** Plays per friend the feed needs: the newest, and the newest finished one. */
+const FEED_PLAYS_PER_FRIEND = 4
+/** Sections slower than this are logged, to spot what needs work next. */
+const SLOW_MS = 800
 
 type UserLite = {
   id: string
@@ -30,7 +45,8 @@ type UserLite = {
   share_listening: boolean
 }
 
-type PlayRow = {
+/** A row from friends_feed_plays. */
+type FeedPlay = {
   id: string
   user_id: string
   release_id: number
@@ -42,17 +58,26 @@ type PlayRow = {
     master_id: number | null
     title: string
     artist_display: string
-    formats: DiscogsFormat[]
+    formats: DiscogsFormat[] | null
     cover_image: string | null
     thumb: string | null
     artwork_url: string | null
     artwork_thumb: string | null
     duration_sec: number | null
   }
+  /** The friend's copy: hand-picked cover and disc photo. */
+  copy: {
+    cover_url: string | null
+    cover_thumb: string | null
+    disc_photo: DiscPhoto | null
+    disc_colors: string[] | null
+  } | null
+  /** The viewer's copy of this release, or of another pressing. */
+  your_copy: { releaseId: number; instanceId: number } | null
 }
 
 /** The spin's runtime: the original album alone when it saved one. */
-const runtimeOf = (p: Pick<PlayRow, 'context' | 'release'>) =>
+const runtimeOf = (p: Pick<FeedPlay, 'context' | 'release'>) =>
   playRuntimeSec(p.context, p.release.duration_sec)
 
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, '\\$&')
@@ -63,6 +88,25 @@ function chunks<T>(items: T[], size = 150): T[][] {
   for (let i = 0; i < items.length; i += size)
     out.push(items.slice(i, i + size))
   return out
+}
+
+/** Awaits `work`, logging it when it's slow. */
+async function timed<T>(label: string, work: PromiseLike<T>): Promise<T> {
+  const start = performance.now()
+  try {
+    return await work
+  } finally {
+    const ms = performance.now() - start
+    if (ms > SLOW_MS)
+      console.warn(`[friends] ${label} took ${Math.round(ms)}ms`)
+  }
+}
+
+/** Database function results, or throws with the function's name. */
+async function rpc<T>(fn: string, args: Record<string, unknown>) {
+  const { data, error } = await timed(fn, db().rpc(fn, args))
+  if (error) throw new Error(`${fn}: ${error.message}`)
+  return (data ?? []) as T[]
 }
 
 const toFriendUser = (u: UserLite): FriendUser => ({
@@ -94,15 +138,24 @@ export async function claimPendingFollows(user: {
   if (error) console.warn('[friends] claim pending follows', error.message)
 }
 
-/** Everything on the Friends tab, from the viewer's point of view. */
-export async function friendsActivity(
-  viewer: UserRow,
-): Promise<FriendsActivity> {
-  const supabase = db()
-  const now = Date.now()
+// ---------- who you follow and who follows you ----------
 
-  const [{ data: following, error: fErr }, { data: followerRows }] =
-    await Promise.all([
+type FollowGraph = {
+  /** In the order you followed them, pending ones included. */
+  following: Array<{ username: string; id: string | null }>
+  followerIds: Set<string>
+  users: Map<string, UserLite>
+  /** Friends whose collection is public. */
+  visible: string[]
+  /** ...who also share what they're spinning. */
+  listeners: string[]
+}
+
+async function followGraph(viewer: UserRow): Promise<FollowGraph> {
+  const supabase = db()
+  const [{ data: followingRows, error }, { data: followerRows }] = await timed(
+    'follows',
+    Promise.all([
       supabase
         .from('follows')
         .select('followee_username, followee_id, created_at')
@@ -112,131 +165,117 @@ export async function friendsActivity(
         .from('follows')
         .select('follower_id')
         .eq('followee_id', viewer.id),
-    ])
-  if (fErr) throw new Error(fErr.message)
+    ]),
+  )
+  if (error) throw new Error(error.message)
 
-  const followingIds = new Set(
-    (following ?? [])
-      .map((f) => f.followee_id as string | null)
-      .filter(Boolean),
-  ) as Set<string>
+  const following = (followingRows ?? []).map((f) => ({
+    username: f.followee_username as string,
+    id: (f.followee_id as string | null) ?? null,
+  }))
   const followerIds = new Set(
     (followerRows ?? []).map((f) => f.follower_id as string),
   )
-  const userIds = [...new Set([...followingIds, ...followerIds])]
+  const userIds = [
+    ...new Set([
+      ...following.flatMap((f) => (f.id ? [f.id] : [])),
+      ...followerIds,
+    ]),
+  ]
   const users = new Map<string, UserLite>()
-  if (userIds.length) {
-    const { data } = await supabase
-      .from('users')
-      .select(
-        'id, discogs_username, display_name, avatar_url, is_public, share_listening',
-      )
-      .in('id', userIds)
-    for (const u of (data ?? []) as UserLite[]) users.set(u.id, u)
-  }
-
-  const visible = [...followingIds].filter((id) => users.get(id)?.is_public)
-  const listeners = visible.filter((id) => users.get(id)?.share_listening)
-  const withMe = [viewer.id, ...listeners]
-  const sharesListening = viewer.share_listening !== false
-
-  // ---- plays: now spinning, last spins, leaderboard, picker ----
-  const since = new Date(now - FEED_DAYS * DAY).toISOString()
-  const { data: playData } = await supabase
-    .from('plays')
-    .select(
-      'id, user_id, release_id, played_at, ended_at, context, release:releases!inner(id, master_id, title, artist_display, formats, cover_image, thumb, artwork_url, artwork_thumb, duration_sec)',
-    )
-    .in('user_id', withMe)
-    .gte('played_at', since)
-    .order('played_at', { ascending: false })
-    .limit(3000)
-  const plays = (playData ?? []) as unknown as PlayRow[]
-
-  // Each user's copies of the records in those plays: hand-picked covers,
-  // disc photos, and how long they've owned them.
-  const releaseIds = [...new Set(plays.map((p) => Number(p.release_id)))]
-  type ItemRow = {
-    user_id: string
-    release_id: number
-    date_added: string | null
-    cover_url: string | null
-    cover_thumb: string | null
-    disc_photo: DiscPhoto | null
-    disc_colors: string[] | null
-  }
-  const copies = new Map<string, ItemRow>()
-  for (const ids of chunks(releaseIds)) {
-    const { data } = await supabase
-      .from('collection_items')
-      .select(
-        'user_id, release_id, date_added, cover_url, cover_thumb, disc_photo, disc_colors',
-      )
-      .in('user_id', withMe)
-      .in('release_id', ids)
-    for (const it of (data ?? []) as ItemRow[])
-      copies.set(`${it.user_id}:${it.release_id}`, it)
-  }
-
-  // The viewer's own shelf, by release and by album, for "Spin it too".
-  const { data: myItems } = await selectAll((from, to) =>
-    supabase
-      .from('collection_items')
-      .select('instance_id, release_id, release:releases!inner(master_id)')
-      .eq('user_id', viewer.id)
-      .order('instance_id')
-      .range(from, to),
+  await timed(
+    'users',
+    Promise.all(
+      chunks(userIds).map(async (ids) => {
+        const { data } = await supabase
+          .from('users')
+          .select(
+            'id, discogs_username, display_name, avatar_url, is_public, share_listening',
+          )
+          .in('id', ids)
+        for (const u of (data ?? []) as UserLite[]) users.set(u.id, u)
+      }),
+    ),
   )
-  const myByRelease = new Map<number, number>()
-  const myByMaster = new Map<
-    number,
-    { releaseId: number; instanceId: number }
-  >()
-  for (const it of myItems ?? []) {
-    const releaseId = Number(it.release_id)
-    const instanceId = Number(it.instance_id)
-    myByRelease.set(releaseId, instanceId)
-    const master = (it.release as unknown as { master_id: number | null })
-      .master_id
-    if (master) myByMaster.set(Number(master), { releaseId, instanceId })
-  }
 
-  const isOpen = (p: PlayRow) =>
+  const visible = following
+    .flatMap((f) => (f.id ? [f.id] : []))
+    .filter((id) => users.get(id)?.is_public)
+  const listeners = visible.filter((id) => users.get(id)?.share_listening)
+  return { following, followerIds, users, visible, listeners }
+}
+
+/** Just the usernames, for Follow buttons around the app. */
+export async function friendFollows(viewer: UserRow): Promise<FriendFollows> {
+  const g = await followGraph(viewer)
+  return {
+    following: g.following.map((f) => f.username.toLowerCase()),
+    followers: [...g.followerIds].flatMap((id) => {
+      const u = g.users.get(id)
+      return u ? [u.discogs_username.toLowerCase()] : []
+    }),
+  }
+}
+
+// ---------- the live part: friends and what they're spinning ----------
+
+/** The friend list with now playing and last spin. Polled by the tab. */
+export async function friendsLive(viewer: UserRow): Promise<FriendsLive> {
+  const now = Date.now()
+  const g = await followGraph(viewer)
+  const followingIds = new Set(g.following.map((f) => f.id))
+
+  const plays = g.listeners.length
+    ? await rpc<FeedPlay>('friends_feed_plays', {
+        p_viewer: viewer.id,
+        p_user_ids: g.listeners,
+        p_since: new Date(now - FEED_DAYS * DAY).toISOString(),
+        p_per_user: FEED_PLAYS_PER_FRIEND,
+      })
+    : []
+
+  const isOpen = (p: FeedPlay) =>
     !p.ended_at && now <= spinEndsAt(p.played_at, runtimeOf(p))
 
   // Newest play per user = now playing (if still open); newest finished one
-  // = last spin.
-  const nowByUser = new Map<string, PlayRow>()
-  const lastByUser = new Map<string, PlayRow>()
+  // = last spin. Rows come newest first.
+  const nowByUser = new Map<string, FeedPlay>()
+  const lastByUser = new Map<string, FeedPlay>()
   for (const p of plays) {
-    if (p.user_id === viewer.id) continue
     const first = !nowByUser.has(p.user_id) && !lastByUser.has(p.user_id)
     if (first && isOpen(p)) nowByUser.set(p.user_id, p)
     else if (!lastByUser.has(p.user_id) && !isOpen(p))
       lastByUser.set(p.user_id, p)
   }
-  const shownPlays = [...nowByUser.values(), ...lastByUser.values()]
-  const reactions = await reactionsFor(shownPlays.map((p) => p.id))
+  const shownIds = [...nowByUser.values(), ...lastByUser.values()].map(
+    (p) => p.id,
+  )
+  const reactions = new Map<string, Array<Reaction & { userId: string }>>()
+  await timed(
+    'reactions',
+    Promise.all(
+      chunks(shownIds).map(async (ids) => {
+        for (const [k, v] of await reactionsFor(ids)) reactions.set(k, v)
+      }),
+    ),
+  )
 
-  const toSpin = (p: PlayRow, open: boolean): FriendSpin => {
+  const toSpin = (p: FeedPlay, open: boolean): FriendSpin => {
     const rel = p.release
-    const copy = copies.get(`${p.user_id}:${p.release_id}`)
     const mine = reactions.get(p.id) ?? []
-    const master = rel.master_id ? Number(rel.master_id) : null
-    const exact = myByRelease.get(Number(rel.id))
     return {
       playId: p.id,
       releaseId: Number(rel.id),
-      masterId: master,
+      masterId: rel.master_id ? Number(rel.master_id) : null,
       title: rel.title,
       artist: rel.artist_display,
       look: withDiscPhoto(
         parseVinylLook(rel.formats ?? []),
-        copy?.disc_photo ?? null,
-        copy?.disc_colors ?? null,
+        p.copy?.disc_photo ?? null,
+        p.copy?.disc_colors ?? null,
       ),
-      coverImage: copy?.cover_url ?? rel.artwork_url ?? rel.cover_image,
-      thumb: copy?.cover_thumb ?? rel.artwork_thumb ?? rel.thumb,
+      coverImage: p.copy?.cover_url ?? rel.artwork_url ?? rel.cover_image,
+      thumb: p.copy?.cover_thumb ?? rel.artwork_thumb ?? rel.thumb,
       durationSec: runtimeOf(p),
       startedAt: p.played_at,
       endsAt: open
@@ -249,64 +288,21 @@ export async function friendsActivity(
         emoji: r.emoji,
       })),
       myReaction: mine.find((r) => r.userId === viewer.id)?.emoji ?? null,
-      yourCopy:
-        exact != null
-          ? { releaseId: Number(rel.id), instanceId: exact }
-          : master
-            ? (myByMaster.get(master) ?? null)
-            : null,
+      yourCopy: p.your_copy
+        ? {
+            releaseId: Number(p.your_copy.releaseId),
+            instanceId: Number(p.your_copy.instanceId),
+          }
+        : null,
     }
   }
 
-  // ---- recent additions and collection sizes ----
-  const additions = new Map<string, Friend['recentAdditions']>()
-  const sizes = new Map<string, number>()
-  if (visible.length) {
-    const { data } = await supabase
-      .from('collection_items')
-      .select(
-        'user_id, date_added, release:releases!inner(id, title, artist_display, thumb, artwork_thumb)',
-      )
-      .in('user_id', visible)
-      .gte('date_added', since)
-      .order('date_added', { ascending: false })
-      .limit(300)
-    for (const it of data ?? []) {
-      const rel = it.release as unknown as {
-        id: number
-        title: string
-        artist_display: string
-        thumb: string | null
-        artwork_thumb: string | null
-      }
-      const list = additions.get(it.user_id as string) ?? []
-      list.push({
-        releaseId: Number(rel.id),
-        title: rel.title,
-        artist: rel.artist_display,
-        thumb: rel.artwork_thumb ?? rel.thumb,
-        dateAdded: it.date_added as string,
-      })
-      additions.set(it.user_id as string, list)
-    }
-    await Promise.all(
-      visible.map(async (id) => {
-        const { count } = await supabase
-          .from('collection_items')
-          .select('instance_id', { count: 'exact', head: true })
-          .eq('user_id', id)
-        sizes.set(id, count ?? 0)
-      }),
-    )
-  }
-
-  // ---- the list, in the order you followed them ----
-  const friends: Friend[] = (following ?? []).map((f) => {
-    const id = f.followee_id as string | null
-    const u = id ? users.get(id) : undefined
-    if (!id || !u) {
+  // In the order you followed them.
+  const friends: Friend[] = g.following.map((f) => {
+    const u = f.id ? g.users.get(f.id) : undefined
+    if (!f.id || !u) {
       return {
-        username: f.followee_username as string,
+        username: f.username,
         displayName: null,
         avatarUrl: null,
         status: 'pending',
@@ -314,114 +310,70 @@ export async function friendsActivity(
         sharesListening: false,
         nowPlaying: null,
         lastSpin: null,
-        recordCount: null,
-        recentAdditions: [],
       }
     }
     const listening = u.is_public && u.share_listening
-    const nowPlay = listening ? nowByUser.get(id) : undefined
-    const lastPlay = listening ? lastByUser.get(id) : undefined
+    const nowPlay = listening ? nowByUser.get(f.id) : undefined
+    const lastPlay = listening ? lastByUser.get(f.id) : undefined
     return {
       ...toFriendUser(u),
       status: u.is_public ? 'active' : 'private',
-      followsYou: followerIds.has(id),
+      followsYou: g.followerIds.has(f.id),
       sharesListening: u.share_listening,
       nowPlaying: nowPlay ? toSpin(nowPlay, true) : null,
       lastSpin: lastPlay ? toSpin(lastPlay, false) : null,
-      recordCount: sizes.get(id) ?? null,
-      recentAdditions: (additions.get(id) ?? []).slice(0, 8),
     }
   })
 
-  const followers = [...followerIds]
+  const followers = [...g.followerIds]
     .filter((id) => !followingIds.has(id))
-    .map((id) => users.get(id))
+    .map((id) => g.users.get(id))
     .filter((u): u is UserLite => !!u)
     .map(toFriendUser)
 
   return {
-    sharesListening,
+    sharesListening: viewer.share_listening !== false,
     friends,
     followers,
-    leaderboard: await leaderboard(viewer, users, listeners, plays, copies),
-    wantMatches: await wantMatches(viewer, visible, users),
-    recentSpins: plays
-      .filter(
-        (p) =>
-          p.user_id !== viewer.id &&
-          new Date(p.played_at).getTime() >= now - PICKER_DAYS * DAY,
-      )
-      .map((p) => {
-        const u = users.get(p.user_id)!
-        return {
-          releaseId: Number(p.release_id),
-          masterId: p.release.master_id ? Number(p.release.master_id) : null,
-          username: u.discogs_username,
-          displayName: u.display_name,
-          playedAt: p.played_at,
-        }
-      }),
   }
 }
+
+// ---------- this week ----------
 
 /**
  * Last 7 days for you and the friends who share listening: spins, minutes
  * actually on the turntable, and dust collectors given their first spin.
  */
-async function leaderboard(
+export async function friendsLeaderboard(
   viewer: UserRow,
-  users: Map<string, UserLite>,
-  listeners: string[],
-  plays: PlayRow[],
-  copies: Map<string, { date_added: string | null }>,
 ): Promise<LeaderRow[]> {
   const now = Date.now()
-  const weekStart = now - LEADERBOARD_DAYS * DAY
-  const week = plays.filter((p) => new Date(p.played_at).getTime() >= weekStart)
-  const ids = [viewer.id, ...listeners]
-
-  // Rescued: owned for a while, and no logged spin before this week.
-  const candidates = week.filter((p) => {
-    const added = copies.get(`${p.user_id}:${p.release_id}`)?.date_added
-    return added && new Date(added).getTime() < now - DUST_DAYS * DAY
+  const g = await followGraph(viewer)
+  const ids = [viewer.id, ...g.listeners]
+  const totals = await rpc<{
+    user_id: string
+    spins: number
+    minutes: number
+    rescued: number
+  }>('friends_leaderboard', {
+    p_user_ids: ids,
+    p_week_start: new Date(now - LEADERBOARD_DAYS * DAY).toISOString(),
+    p_dust_before: new Date(now - DUST_DAYS * DAY).toISOString(),
+    p_default_runtime_sec: DEFAULT_RUNTIME_SEC,
   })
-  const playedBefore = new Set<string>()
-  const candidateReleases = [...new Set(candidates.map((p) => p.release_id))]
-  for (const rel of chunks(candidateReleases)) {
-    const { data } = await db()
-      .from('plays')
-      .select('user_id, release_id')
-      .in('user_id', ids)
-      .in('release_id', rel)
-      .lt('played_at', new Date(weekStart).toISOString())
-    for (const p of data ?? [])
-      playedBefore.add(`${p.user_id as string}:${Number(p.release_id)}`)
-  }
+  const byUser = new Map(totals.map((t) => [t.user_id, t]))
 
   const rows = ids.map((id): LeaderRow => {
-    const mine = week.filter((p) => p.user_id === id)
-    const minutes = mine.reduce((sum, p) => {
-      const runtime = (runtimeOf(p) ?? DEFAULT_RUNTIME_SEC) * 1000
-      const start = new Date(p.played_at).getTime()
-      const end = p.ended_at ? new Date(p.ended_at).getTime() : now
-      return sum + Math.max(0, Math.min(runtime, end - start)) / 60_000
-    }, 0)
-    const rescued = new Set(
-      candidates
-        .filter(
-          (p) => p.user_id === id && !playedBefore.has(`${id}:${p.release_id}`),
-        )
-        .map((p) => p.release_id),
-    ).size
-    const u = id === viewer.id ? null : users.get(id)
+    const t = byUser.get(id)
+    const u = id === viewer.id ? null : g.users.get(id)
     return {
       username: u?.discogs_username ?? viewer.discogs_username,
       displayName: u ? u.display_name : viewer.display_name,
       avatarUrl: u ? u.avatar_url : viewer.avatar_url,
       isYou: id === viewer.id,
-      spins: mine.length,
-      minutes: Math.round(minutes),
-      rescued,
+      spins: t?.spins ?? 0,
+      minutes: t?.minutes ?? 0,
+      rescued: t?.rescued ?? 0,
     }
   })
   return rows.sort(
@@ -430,94 +382,149 @@ async function leaderboard(
   )
 }
 
-/** Your wantlist against friends' shelves: exact pressing or same album. */
-async function wantMatches(
-  viewer: UserRow,
-  visible: string[],
-  users: Map<string, UserLite>,
-): Promise<WantMatch[]> {
-  if (!visible.length) return []
-  const supabase = db()
-  const { data: wants, error } = await selectAll((from, to) =>
-    supabase
-      .from('want_items')
-      .select('release_id, master_id, title, artist_display, year, thumb')
-      .eq('user_id', viewer.id)
-      .order('release_id')
-      .range(from, to),
-  )
-  if (error || !wants?.length) return []
+// ---------- their crates: sizes, new additions, your wants ----------
 
-  type Hit = { user_id: string; release_id: number; master_id: number | null }
-  const hits: Hit[] = []
-  const wantIds = wants.map((w) => Number(w.release_id))
-  const masterIds = [
-    ...new Set(
-      wants
-        .map((w) => Number(w.master_id))
-        .filter((m) => Number.isFinite(m) && m > 0),
-    ),
-  ]
-  for (const ids of chunks(wantIds)) {
-    const { data } = await supabase
-      .from('collection_items')
-      .select('user_id, release_id, release:releases!inner(master_id)')
-      .in('user_id', visible)
-      .in('release_id', ids)
-    for (const it of data ?? [])
-      hits.push({
-        user_id: it.user_id as string,
-        release_id: Number(it.release_id),
-        master_id: (it.release as unknown as { master_id: number | null })
-          .master_id,
-      })
+/** Collection sizes, new additions and want matches. Change on sync only. */
+export async function friendsCrates(viewer: UserRow): Promise<FriendsCrates> {
+  const g = await followGraph(viewer)
+  if (!g.visible.length)
+    return { recordCounts: {}, additions: [], wantMatches: [] }
+  const since = new Date(Date.now() - FEED_DAYS * DAY).toISOString()
+
+  const [counts, added, matches] = await Promise.all([
+    rpc<{ user_id: string; records: number }>('record_counts', {
+      p_user_ids: g.visible,
+    }),
+    rpc<{
+      user_id: string
+      release_id: number
+      title: string
+      artist_display: string
+      thumb: string | null
+      date_added: string
+    }>('friends_recent_additions', {
+      p_user_ids: g.visible,
+      p_since: since,
+      p_per_user: ADDITIONS_PER_FRIEND,
+    }),
+    rpc<{
+      release_id: number
+      master_id: number | null
+      title: string
+      artist_display: string
+      year: number | null
+      thumb: string | null
+      owner_id: string
+      exact: boolean
+    }>('friends_want_matches', {
+      p_viewer: viewer.id,
+      p_user_ids: g.visible,
+    }),
+  ])
+
+  const recordCounts: Record<string, number> = {}
+  for (const id of g.visible) {
+    const u = g.users.get(id)
+    if (u) recordCounts[u.discogs_username.toLowerCase()] = 0
   }
-  for (const ids of chunks(masterIds)) {
-    const { data } = await supabase
-      .from('collection_items')
-      .select('user_id, release_id, release:releases!inner(master_id)')
-      .in('user_id', visible)
-      .in('release.master_id', ids)
-    for (const it of data ?? [])
-      hits.push({
-        user_id: it.user_id as string,
-        release_id: Number(it.release_id),
-        master_id: (it.release as unknown as { master_id: number | null })
-          .master_id,
-      })
+  for (const c of counts) {
+    const u = g.users.get(c.user_id)
+    if (u) recordCounts[u.discogs_username.toLowerCase()] = c.records
   }
 
-  const out: WantMatch[] = []
-  for (const w of wants) {
-    const releaseId = Number(w.release_id)
-    const masterId = w.master_id ? Number(w.master_id) : null
-    const owners = new Map<string, boolean>()
-    for (const h of hits) {
-      const exact = h.release_id === releaseId
-      const same = masterId != null && Number(h.master_id) === masterId
-      if (exact || same) owners.set(h.user_id, owners.get(h.user_id) || exact)
+  // Newest first, so friends come out in order of their latest addition.
+  const additionsByUser = new Map<string, FriendAdditions>()
+  for (const a of added) {
+    const u = g.users.get(a.user_id)
+    if (!u) continue
+    const entry = additionsByUser.get(a.user_id) ?? {
+      ...toFriendUser(u),
+      records: [],
     }
-    if (!owners.size) continue
-    out.push({
+    entry.records.push({
+      releaseId: Number(a.release_id),
+      title: a.title,
+      artist: a.artist_display,
+      thumb: a.thumb,
+      dateAdded: a.date_added,
+    })
+    additionsByUser.set(a.user_id, entry)
+  }
+
+  const wants = new Map<number, WantMatch>()
+  for (const m of matches) {
+    const u = g.users.get(m.owner_id)
+    if (!u) continue
+    const releaseId = Number(m.release_id)
+    const entry = wants.get(releaseId) ?? {
       want: {
         releaseId,
-        masterId,
-        title: w.title as string,
-        artist: w.artist_display as string,
-        year: (w.year as number | null) ?? null,
-        thumb: (w.thumb as string | null) ?? null,
+        masterId: m.master_id ? Number(m.master_id) : null,
+        title: m.title,
+        artist: m.artist_display,
+        year: m.year ?? null,
+        thumb: m.thumb ?? null,
       },
-      owners: [...owners].map(([id, exact]) => ({
-        ...toFriendUser(users.get(id)!),
-        exact,
-      })),
-    })
+      owners: [],
+    }
+    entry.owners.push({ ...toFriendUser(u), exact: m.exact })
+    wants.set(releaseId, entry)
   }
   // Exact pressings first: those are the ones worth asking to borrow.
-  return out.sort(
+  const wantMatches = [...wants.values()].sort(
     (a, b) =>
       Number(b.owners.some((o) => o.exact)) -
         Number(a.owners.some((o) => o.exact)) ||
       a.want.artist.localeCompare(b.want.artist),
   )
+
+  return {
+    recordCounts,
+    additions: [...additionsByUser.values()],
+    wantMatches,
+  }
+}
+
+// ---------- for the picker ----------
+
+/** Friends' spins in the last 14 days, newest first. */
+export async function friendRecentSpins(
+  viewer: UserRow,
+): Promise<FriendRecentSpin[]> {
+  const g = await followGraph(viewer)
+  const since = new Date(Date.now() - PICKER_DAYS * DAY).toISOString()
+  const rows = (
+    await timed(
+      'recent spins',
+      Promise.all(
+        chunks(g.listeners).map(async (ids) => {
+          const { data } = await db()
+            .from('plays')
+            .select(
+              'user_id, release_id, played_at, release:releases!inner(master_id)',
+            )
+            .in('user_id', ids)
+            .gte('played_at', since)
+            .order('played_at', { ascending: false })
+            .limit(2000)
+          return data ?? []
+        }),
+      ),
+    )
+  ).flat()
+
+  return rows
+    .map((p) => {
+      const u = g.users.get(p.user_id as string)!
+      const master = (p.release as unknown as { master_id: number | null })
+        .master_id
+      return {
+        releaseId: Number(p.release_id),
+        masterId: master ? Number(master) : null,
+        username: u.discogs_username,
+        displayName: u.display_name,
+        playedAt: p.played_at as string,
+      }
+    })
+    .sort((a, b) => b.playedAt.localeCompare(a.playedAt))
 }

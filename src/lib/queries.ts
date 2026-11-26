@@ -6,7 +6,14 @@ import {
   getTracklists,
   getViewer,
 } from '#/lib/collection.functions'
-import { getFriendsActivity, getWantlist } from '#/lib/friends.functions'
+import {
+  getFriendFollows,
+  getFriendRecentSpins,
+  getFriendsCrates,
+  getFriendsLeaderboard,
+  getFriendsLive,
+  getWantlist,
+} from '#/lib/friends.functions'
 
 export const viewerQuery = queryOptions({
   queryKey: ['viewer'],
@@ -56,11 +63,42 @@ export const nowPlayingQuery = queryOptions({
   refetchInterval: 60_000,
 })
 
-/** The Friends tab: who you follow, what they're spinning, the leaderboard. */
+/** Every friends query starts with this: invalidate it after a follow. */
+export const FRIENDS_KEY = ['friends'] as const
+
+/** The Friends tab: who you follow and what they're spinning. Polled. */
 export const friendsQuery = queryOptions({
-  queryKey: ['friends'],
-  queryFn: () => getFriendsActivity(),
+  queryKey: [...FRIENDS_KEY, 'live'],
+  queryFn: () => getFriendsLive(),
   staleTime: 30_000,
+})
+
+/** This week's leaderboard on the Friends tab. */
+export const friendsLeaderboardQuery = queryOptions({
+  queryKey: [...FRIENDS_KEY, 'leaderboard'],
+  queryFn: () => getFriendsLeaderboard(),
+  staleTime: 60_000,
+})
+
+/** Friends' collection sizes, new additions and your wants they own. */
+export const friendsCratesQuery = queryOptions({
+  queryKey: [...FRIENDS_KEY, 'crates'],
+  queryFn: () => getFriendsCrates(),
+  staleTime: 5 * 60_000,
+})
+
+/** Who you follow and who follows you, for Follow buttons. */
+export const friendFollowsQuery = queryOptions({
+  queryKey: [...FRIENDS_KEY, 'follows'],
+  queryFn: () => getFriendFollows(),
+  staleTime: 60_000,
+})
+
+/** Friends' spins in the last two weeks, for the picker. */
+export const friendRecentSpinsQuery = queryOptions({
+  queryKey: [...FRIENDS_KEY, 'recent-spins'],
+  queryFn: () => getFriendRecentSpins(),
+  staleTime: 60_000,
 })
 
 export const wantlistQuery = (username: string) =>

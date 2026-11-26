@@ -22,6 +22,7 @@ import {
 import { FollowButton, copyInvite, useFollow } from '#/components/follow-button'
 import { VinylDisc } from '#/components/vinyl-disc'
 import { Button } from '#/components/ui/button'
+import { Skeleton } from '#/components/ui/skeleton'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,9 +31,19 @@ import {
 } from '#/components/ui/dropdown-menu'
 import { Input } from '#/components/ui/input'
 import { setShareListening } from '#/lib/friends.functions'
-import { firstName, parseUsername, timeAgo } from '#/lib/friends'
-import type { Friend, FriendsActivity, LeaderRow } from '#/lib/friends'
-import { friendsQuery } from '#/lib/queries'
+import {
+  ADDITIONS_PER_FRIEND,
+  firstName,
+  parseUsername,
+  timeAgo,
+} from '#/lib/friends'
+import type { Friend, FriendUser } from '#/lib/friends'
+import {
+  FRIENDS_KEY,
+  friendsCratesQuery,
+  friendsLeaderboardQuery,
+  friendsQuery,
+} from '#/lib/queries'
 import { formatDuration } from '#/lib/records'
 import type { Viewer } from '#/lib/records'
 import { cn } from '#/lib/utils'
@@ -42,7 +53,12 @@ export const Route = createFileRoute('/friends/')({
     if (!context.viewer) throw redirect({ to: '/' })
     return { me: context.viewer }
   },
-  loader: ({ context }) => context.queryClient.ensureQueryData(friendsQuery),
+  loader: ({ context }) => {
+    // The sidebar loads alongside but doesn't hold up the friend list.
+    void context.queryClient.prefetchQuery(friendsLeaderboardQuery)
+    void context.queryClient.prefetchQuery(friendsCratesQuery)
+    return context.queryClient.ensureQueryData(friendsQuery)
+  },
   head: () => ({ meta: [{ title: 'Friends · Spinsight' }] }),
   component: FriendsPage,
   errorComponent: FriendsError,
@@ -54,7 +70,7 @@ function FriendsError({ error }: ErrorComponentProps) {
       <h1 className="text-3xl font-bold">Friends are unavailable</h1>
       <p className="mx-auto mt-2 max-w-md text-muted-foreground">
         Couldn't load who you follow. If the app was just updated, the database
-        may need migration 006.
+        may need migration 017.
       </p>
       <p className="mt-3 font-mono text-xs text-muted-foreground">
         {error instanceof Error ? error.message : String(error)}
@@ -71,13 +87,6 @@ function FriendsPage() {
 
   const spinning = data.friends.filter((f) => f.nowPlaying)
   const others = data.friends.filter((f) => !f.nowPlaying)
-  const additions = data.friends
-    .flatMap((f) => (f.recentAdditions.length ? [f] : []))
-    .sort((a, b) =>
-      b.recentAdditions[0].dateAdded.localeCompare(
-        a.recentAdditions[0].dateAdded,
-      ),
-    )
 
   return (
     <main className="page-wrap pt-10 pb-24">
@@ -153,9 +162,9 @@ function FriendsPage() {
           </div>
 
           <aside className="grid min-w-0 gap-6">
-            <Leaderboard rows={data.leaderboard} />
-            <WantMatches matches={data.wantMatches} />
-            <NewInCrates friends={additions} />
+            <Leaderboard />
+            <WantMatches />
+            <NewInCrates />
             <FollowingYou followers={data.followers} />
           </aside>
         </div>
@@ -214,7 +223,7 @@ function ShareToggle({ share }: { share: boolean }) {
     setPending(true)
     try {
       await setShareListening({ data: { share: !share } })
-      await qc.invalidateQueries({ queryKey: friendsQuery.queryKey })
+      await qc.invalidateQueries({ queryKey: FRIENDS_KEY })
       await qc.invalidateQueries({ queryKey: ['profile'] })
       toast(
         share
@@ -248,6 +257,10 @@ function ShareToggle({ share }: { share: boolean }) {
 
 function FriendRow({ friend, viewer }: { friend: Friend; viewer: Viewer }) {
   const { unfollow, pending } = useFollow()
+  // Comes with the sidebar's data; the line just leaves it out until then.
+  const { data: crates } = useQuery(friendsCratesQuery)
+  const count = crates?.recordCounts[friend.username.toLowerCase()]
+  const records = count == null ? '' : `${count} records · `
   const body = (
     <>
       <FriendAvatar friend={friend} />
@@ -275,9 +288,9 @@ function FriendRow({ friend, viewer }: { friend: Friend; viewer: Viewer }) {
               <Lock className="size-3" /> Collection is private
             </span>
           ) : friend.lastSpin ? null : friend.sharesListening ? (
-            `${friend.recordCount ?? 0} records · no spins lately`
+            `${records}no spins lately`
           ) : (
-            `${friend.recordCount ?? 0} records · keeps spins private`
+            `${records}keeps spins private`
           )}
         </span>
         {friend.status === 'active' && friend.lastSpin && (
@@ -367,15 +380,34 @@ function SideCard({
 
 const MEDALS = ['🥇', '🥈', '🥉']
 
-function Leaderboard({ rows }: { rows: LeaderRow[] }) {
-  const anyone = rows.some((r) => r.spins > 0)
+/** Placeholder rows while a sidebar card loads. */
+function CardSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="space-y-3" aria-busy="true" aria-label="Loading">
+      {Array.from({ length: rows }, (_, i) => (
+        <Skeleton key={i} className="h-5 w-full" />
+      ))}
+    </div>
+  )
+}
+
+function Leaderboard() {
+  // Your own and friends' spins move it, so it refreshes now and then.
+  const { data: rows, isError } = useQuery({
+    ...friendsLeaderboardQuery,
+    refetchInterval: 2 * 60_000,
+  })
+  if (isError && !rows) return null
+  const anyone = rows?.some((r) => r.spins > 0)
   return (
     <SideCard
       title="This week"
       subtitle="Last 7 days, for friends who share their spins."
       icon={Trophy}
     >
-      {!anyone ? (
+      {!rows ? (
+        <CardSkeleton />
+      ) : !anyone ? (
         <p className="text-sm text-muted-foreground">
           No spins logged this week yet.
         </p>
@@ -429,7 +461,9 @@ function Leaderboard({ rows }: { rows: LeaderRow[] }) {
   )
 }
 
-function WantMatches({ matches }: { matches: FriendsActivity['wantMatches'] }) {
+function WantMatches() {
+  const { data } = useQuery(friendsCratesQuery)
+  const matches = data?.wantMatches ?? []
   if (!matches.length) return null
   return (
     <SideCard
@@ -485,7 +519,9 @@ function WantMatches({ matches }: { matches: FriendsActivity['wantMatches'] }) {
   )
 }
 
-function NewInCrates({ friends }: { friends: Friend[] }) {
+function NewInCrates() {
+  const { data } = useQuery(friendsCratesQuery)
+  const friends = data?.additions ?? []
   if (!friends.length) return null
   return (
     <SideCard
@@ -505,14 +541,14 @@ function NewInCrates({ friends }: { friends: Friend[] }) {
                 {firstName(f)}
               </Link>{' '}
               <span className="text-muted-foreground">
-                added {f.recentAdditions.length}
-                {f.recentAdditions.length === 8 ? '+' : ''}{' '}
-                {f.recentAdditions.length === 1 ? 'record' : 'records'} ·{' '}
-                {timeAgo(f.recentAdditions[0].dateAdded)}
+                added {f.records.length}
+                {f.records.length === ADDITIONS_PER_FRIEND ? '+' : ''}{' '}
+                {f.records.length === 1 ? 'record' : 'records'} ·{' '}
+                {timeAgo(f.records[0].dateAdded)}
               </span>
             </p>
             <ul className="mt-2 flex gap-1.5">
-              {f.recentAdditions.slice(0, 6).map((r) => (
+              {f.records.slice(0, 6).map((r) => (
                 <li
                   key={r.releaseId}
                   title={`${r.artist} – ${r.title}`}
@@ -536,11 +572,7 @@ function NewInCrates({ friends }: { friends: Friend[] }) {
   )
 }
 
-function FollowingYou({
-  followers,
-}: {
-  followers: FriendsActivity['followers']
-}) {
+function FollowingYou({ followers }: { followers: FriendUser[] }) {
   if (!followers.length) return null
   return (
     <SideCard title="Following you" icon={UserPlus}>
@@ -568,7 +600,7 @@ function EmptyState({
   followers,
 }: {
   viewer: Viewer
-  followers: FriendsActivity['followers']
+  followers: FriendUser[]
 }) {
   return (
     <div className="mt-10 grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">

@@ -68,9 +68,15 @@ export type Friend = FriendUser & {
   nowPlaying: FriendSpin | null
   /** Their latest spin that has finished (last 30 days). */
   lastSpin: FriendSpin | null
-  recordCount: number | null
-  /** Records added in the last 30 days, newest first. */
-  recentAdditions: Array<{
+}
+
+/** "New in their crates" shows up to this many per friend ("8+"). */
+export const ADDITIONS_PER_FRIEND = 8
+
+/** A friend's records added in the last 30 days, newest first (at most
+ * ADDITIONS_PER_FRIEND). */
+export type FriendAdditions = FriendUser & {
+  records: Array<{
     releaseId: number
     title: string
     artist: string
@@ -109,23 +115,39 @@ export type WantlistItem = WantItem & {
   dateAdded: string | null
 }
 
-export type FriendsActivity = {
+/** The polled part of the Friends tab. */
+export type FriendsLive = {
   sharesListening: boolean
   friends: Friend[]
   /** People following you whom you don't follow back. */
   followers: FriendUser[]
-  /** You and the friends who share listening, last 7 days. */
-  leaderboard: LeaderRow[]
+}
+
+/** The parts of the Friends tab that only change when someone syncs. */
+export type FriendsCrates = {
+  /** Collection sizes of friends with public collections, by lowercase username. */
+  recordCounts: Record<string, number>
+  /** Friends who added records lately, latest addition first. */
+  additions: FriendAdditions[]
   /** Your wants that a friend owns. */
   wantMatches: WantMatch[]
-  /** Friends' spins in the last 14 days, newest first (for the picker). */
-  recentSpins: Array<{
-    releaseId: number
-    masterId: number | null
-    username: string
-    displayName: string | null
-    playedAt: string
-  }>
+}
+
+/** Lowercase usernames, for Follow buttons. */
+export type FriendFollows = {
+  /** Everyone you follow, pending ones included. */
+  following: string[]
+  /** Everyone following you. */
+  followers: string[]
+}
+
+/** A friend's spin in the last 14 days, for the picker. */
+export type FriendRecentSpin = {
+  releaseId: number
+  masterId: number | null
+  username: string
+  displayName: string | null
+  playedAt: string
 }
 
 // ---------- comparing two collections ----------

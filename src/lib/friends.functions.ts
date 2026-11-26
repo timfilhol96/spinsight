@@ -1,7 +1,15 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { REACTIONS, USERNAME_RE } from '#/lib/friends'
-import type { FriendsActivity, WantlistItem } from '#/lib/friends'
+import type {
+  FriendFollows,
+  FriendRecentSpin,
+  FriendsCrates,
+  FriendsLive,
+  LeaderRow,
+  WantlistItem,
+} from '#/lib/friends'
+import type { UserRow } from '#/lib/supabase.server'
 import type { VinylLook } from '#/lib/vinyl-color'
 
 // Server functions for following people and the Friends tab. Server-only
@@ -9,13 +17,53 @@ import type { VinylLook } from '#/lib/vinyl-color'
 
 const Username = z.string().regex(USERNAME_RE)
 
-export const getFriendsActivity = createServerFn({ method: 'GET' }).handler(
-  async (): Promise<FriendsActivity | null> => {
+/** A server function for the signed-in viewer, null when signed out. */
+function forViewer<T>(load: (viewer: UserRow) => Promise<T>) {
+  return async (): Promise<T | null> => {
     const { currentUser } = await import('#/lib/session.server')
-    const { friendsActivity } = await import('#/lib/friends.server')
     const viewer = await currentUser()
-    return viewer ? friendsActivity(viewer) : null
-  },
+    return viewer ? load(viewer) : null
+  }
+}
+
+/** Friends and what they're spinning: the polled part of the Friends tab. */
+export const getFriendsLive = createServerFn({ method: 'GET' }).handler(
+  forViewer(async (viewer): Promise<FriendsLive> => {
+    const { friendsLive } = await import('#/lib/friends.server')
+    return friendsLive(viewer)
+  }),
+)
+
+/** This week's leaderboard for you and friends who share listening. */
+export const getFriendsLeaderboard = createServerFn({ method: 'GET' }).handler(
+  forViewer(async (viewer): Promise<LeaderRow[]> => {
+    const { friendsLeaderboard } = await import('#/lib/friends.server')
+    return friendsLeaderboard(viewer)
+  }),
+)
+
+/** Friends' collection sizes, new additions and which of your wants they own. */
+export const getFriendsCrates = createServerFn({ method: 'GET' }).handler(
+  forViewer(async (viewer): Promise<FriendsCrates> => {
+    const { friendsCrates } = await import('#/lib/friends.server')
+    return friendsCrates(viewer)
+  }),
+)
+
+/** Who you follow and who follows you, by username only. */
+export const getFriendFollows = createServerFn({ method: 'GET' }).handler(
+  forViewer(async (viewer): Promise<FriendFollows> => {
+    const { friendFollows } = await import('#/lib/friends.server')
+    return friendFollows(viewer)
+  }),
+)
+
+/** Friends' spins in the last two weeks, for the picker. */
+export const getFriendRecentSpins = createServerFn({ method: 'GET' }).handler(
+  forViewer(async (viewer): Promise<FriendRecentSpin[]> => {
+    const { friendRecentSpins } = await import('#/lib/friends.server')
+    return friendRecentSpins(viewer)
+  }),
 )
 
 /**

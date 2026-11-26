@@ -43,7 +43,7 @@ import type {
   Weather,
 } from '#/lib/moods'
 import { albumKey, firstName, timeAgo } from '#/lib/friends'
-import { friendsQuery } from '#/lib/queries'
+import { friendRecentSpinsQuery } from '#/lib/queries'
 import type { CollectionRecord } from '#/lib/records'
 import { formatDuration } from '#/lib/records'
 import { THEME_PRIORITY, useRecordTheme } from '#/lib/theme'
@@ -89,8 +89,8 @@ function PickPage() {
   const families = useMemo(() => availableFamilies(records), [records])
 
   // Records you own that friends spun in the last two weeks (any pressing).
-  const { data: activity } = useQuery({
-    ...friendsQuery,
+  const { data: friendSpins } = useQuery({
+    ...friendRecentSpinsQuery,
     enabled: profile.isOwner,
   })
   const friendPicks = useMemo(() => {
@@ -98,7 +98,7 @@ function PickPage() {
     for (const r of records)
       if (!byAlbum.has(albumKey(r))) byAlbum.set(albumKey(r), r)
     const out = new Map<number, Candidate>()
-    for (const s of activity?.recentSpins ?? []) {
+    for (const s of friendSpins ?? []) {
       const record =
         records.find((r) => r.releaseId === s.releaseId) ??
         byAlbum.get(albumKey(s))
@@ -114,7 +114,7 @@ function PickPage() {
       }
     }
     return [...out.values()]
-  }, [records, activity])
+  }, [records, friendSpins])
 
   function fromFriends() {
     let pool = friendPicks.filter(
