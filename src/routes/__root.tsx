@@ -9,6 +9,7 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import type { ErrorComponentProps } from '@tanstack/react-router'
 import type { QueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
+import { Analytics } from '@vercel/analytics/react'
 
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 import { MobileNav } from '#/components/mobile-nav'
@@ -151,6 +152,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           />
         )}
         <Scripts />
+        <Analytics />
       </body>
     </html>
   )
