@@ -20,7 +20,7 @@ function PrivacyPage() {
     <TextPage
       kicker="Privacy"
       title="What Spinsight knows about you"
-      lead="Very little beyond your record collection. No email, no password, no ads, no tracking. Here's all of it, and how to take it back."
+      lead="Very little beyond your record collection. No email, no password, no ads, nothing that follows you around. Here's all of it, and how to take it back."
       updated={POLICIES_UPDATED}
     >
       <YourData />
@@ -61,9 +61,10 @@ function PrivacyPage() {
         data.
       </p>
       <p>
-        We don't collect your email address, a password, payment details, your
-        precise location or anything about how you browse. There are no
-        analytics, advertising or tracking scripts.
+        We don't collect your email address, a password, payment details or your
+        precise location. There are no advertising or tracking scripts. Page
+        views are counted anonymously so we can see which pages get used (see
+        Vercel, below).
       </p>
 
       <h2>Your location, for the weather</h2>
@@ -121,6 +122,13 @@ function PrivacyPage() {
           short-lived request logs that include IP addresses.
         </li>
         <li>
+          <strong>Vercel Web Analytics</strong> counts page views: the page, the
+          site that linked to it, and your country, browser, operating system
+          and device type. Usernames are taken out of profile addresses before
+          anything is sent, so it records "a profile was viewed", not whose. It
+          sets no cookies and doesn't recognise you from one day to the next.
+        </li>
+        <li>
           <strong>Discogs</strong> provides your collection, wantlist and
           release details, using your access key.
         </li>
@@ -148,8 +156,8 @@ function PrivacyPage() {
         One cookie, <code>spinsight_session</code>, keeps you signed in. It's
         encrypted, can't be read by scripts on the page, and expires after 90
         days. Your browser also remembers your light/dark choice and whether the
-        player is minimised. Nothing is used for tracking, so there's no cookie
-        banner.
+        player is minimised. Nothing here is used for tracking or analytics, so
+        there's no cookie banner.
       </p>
 
       <h2>How long we keep it</h2>

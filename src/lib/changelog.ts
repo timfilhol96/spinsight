@@ -15,6 +15,14 @@ export type Release = {
 export const CHANGELOG: Release[] = [
   {
     date: '2026-11-26',
+    title: 'Anonymous page counts',
+    items: [
+      'Spinsight now counts page views, to see which pages people actually use. It records the page, not who you are or whose collection you looked at: usernames are removed before anything is sent, and no cookies are set.',
+      'The Privacy and Trust pages say exactly what’s counted.',
+    ],
+  },
+  {
+    date: '2026-11-26',
     title: 'Faster Friends tab',
     items: [
       'The Friends tab opens much faster when you follow a lot of people. Who’s spinning shows up first, and the leaderboard and sidebar fill in right after.',
