@@ -120,7 +120,11 @@ function TrustPage() {
 
       <h2>What we don't do</h2>
       <ul>
-        <li>No ads, no analytics, no tracking pixels, no data sales.</li>
+        <li>No ads, no tracking pixels, no data sales.</li>
+        <li>
+          No following you around: page views are counted anonymously, with
+          usernames taken out (details in <Link to="/privacy">Privacy</Link>).
+        </li>
         <li>
           No sharing of personal data with anyone beyond the services that run
           the app (listed in <Link to="/privacy">Privacy</Link>).

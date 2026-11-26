@@ -9,6 +9,7 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import type { ErrorComponentProps } from '@tanstack/react-router'
 import type { QueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
+import { Analytics } from '@vercel/analytics/react'
 
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 import { MobileNav } from '#/components/mobile-nav'
@@ -18,6 +19,7 @@ import { VinylDisc, VinylDiscDefs } from '#/components/vinyl-disc'
 import { Button } from '#/components/ui/button'
 import { Toaster } from '#/components/ui/sonner'
 import { TooltipProvider } from '#/components/ui/tooltip'
+import { beforeSend } from '#/lib/analytics'
 import { viewerQuery } from '#/lib/queries'
 import { SITE_URL } from '#/lib/site'
 import { colorSchemeScript } from '#/lib/theme'
@@ -151,6 +153,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           />
         )}
         <Scripts />
+        <Analytics beforeSend={beforeSend} />
       </body>
     </html>
   )
