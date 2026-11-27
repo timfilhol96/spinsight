@@ -63,8 +63,8 @@ function PrivacyPage() {
       <p>
         We don't collect your email address, a password, payment details or your
         precise location. There are no advertising or tracking scripts. Page
-        views are counted anonymously so we can see which pages get used (see
-        Vercel, below).
+        views and load times are counted anonymously so we can see which pages
+        get used and which are slow (see Vercel, below).
       </p>
 
       <h2>Your location, for the weather</h2>
@@ -127,6 +127,12 @@ function PrivacyPage() {
           and device type. Usernames are taken out of profile addresses before
           anything is sent, so it records "a profile was viewed", not whose. It
           sets no cookies and doesn't recognise you from one day to the next.
+        </li>
+        <li>
+          <strong>Vercel Speed Insights</strong> measures how fast pages load
+          and respond: the timings, the page, and your country, browser,
+          operating system, device type and connection speed. Usernames are
+          taken out of the address the same way. It sets no cookies either.
         </li>
         <li>
           <strong>Discogs</strong> provides your collection, wantlist and

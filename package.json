@@ -26,6 +26,7 @@
     "@tanstack/react-router-ssr-query": "latest",
     "@tanstack/react-start": "latest",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.1.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cn": "^0.4.0",
