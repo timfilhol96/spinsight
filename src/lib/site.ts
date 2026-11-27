@@ -5,4 +5,4 @@
 export const SITE_URL = 'https://spinsight-app.vercel.app'
 export const REPO_URL = 'https://github.com/timfilhol96/spinsight'
 /** Shown on Privacy, Terms and Trust. Update when their content changes. */
-export const POLICIES_UPDATED = '26 November 2026'
+export const POLICIES_UPDATED = '27 November 2026'

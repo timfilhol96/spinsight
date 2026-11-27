@@ -122,8 +122,9 @@ function TrustPage() {
       <ul>
         <li>No ads, no tracking pixels, no data sales.</li>
         <li>
-          No following you around: page views are counted anonymously, with
-          usernames taken out (details in <Link to="/privacy">Privacy</Link>).
+          No following you around: page views and load times are counted
+          anonymously, with usernames taken out (details in{' '}
+          <Link to="/privacy">Privacy</Link>).
         </li>
         <li>
           No sharing of personal data with anyone beyond the services that run

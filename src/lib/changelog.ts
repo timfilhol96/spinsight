@@ -14,6 +14,14 @@ export type Release = {
 
 export const CHANGELOG: Release[] = [
   {
+    date: '2026-11-27',
+    title: 'Anonymous load times',
+    items: [
+      'Spinsight now measures how quickly pages load and respond, so slow ones can be found and fixed. Like page counts, it records the page, not who you are or whose collection you looked at, and sets no cookies.',
+      'The Privacy and Trust pages say what’s measured.',
+    ],
+  },
+  {
     date: '2026-11-26',
     title: 'Anonymous page counts',
     items: [
