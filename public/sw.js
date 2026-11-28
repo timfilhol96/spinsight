@@ -2,11 +2,15 @@
 //  - hashed build assets: cache-first (they never change)
 //  - album covers: stale-while-revalidate, capped
 //  - page loads: network, falling back to an offline page
+//  - the offline page's logo and icons: network, falling back to the copy
+//    stored at install
 // Server functions, API routes and auth are never cached.
 const VERSION = 'v1'
 const STATIC = `spinsight-static-${VERSION}`
 const COVERS = `spinsight-covers-${VERSION}`
 const OFFLINE_URL = '/offline.html'
+// Stored at install so the offline page has its logo and icons.
+const SHELL = [OFFLINE_URL, '/logo.svg', '/icon-192.png']
 const COVER_HOSTS = [
   'coverartarchive.org',
   'i.scdn.co',
@@ -21,7 +25,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(STATIC)
-      .then((c) => c.addAll([OFFLINE_URL, '/logo.svg', '/icon-192.png']))
+      .then((c) => c.addAll(SHELL))
       .then(() => self.skipWaiting()),
   )
 })
@@ -55,6 +59,15 @@ self.addEventListener('fetch', (event) => {
 
   if (req.mode === 'navigate') {
     event.respondWith(fetch(req).catch(() => caches.match(OFFLINE_URL)))
+    return
+  }
+
+  if (url.origin === location.origin && SHELL.includes(url.pathname)) {
+    event.respondWith(
+      fetch(req).catch(() =>
+        caches.match(url.pathname).then((hit) => hit || Response.error()),
+      ),
+    )
     return
   }
 
